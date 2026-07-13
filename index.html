@@ -115,6 +115,7 @@
                 <div id="videoContainer">
                     <video id="preview" autoplay playsinline muted></video>
                 </div>
+                <button id="switchCamBtn" style="background: #34495e; font-size: 12px; padding: 6px 12px; margin-top: 10px;" onclick="cycleCameras()">🔄 Switch Camera Lens</button>
                 <div id="scannerStatus" class="status-badge">🔄 Initializing...</div>
             </div>
 
@@ -139,7 +140,7 @@
             <p style="margin: 2px 0 10px 0; font-size: 12px; color: #666;">Register a new employee badge ID code into the system authority registry.</p>
             <div class="inline-form">
                 <input type="text" id="newEmpId" placeholder="Employee Number" style="text-transform: uppercase;">
-                <input type="text" id="newEmpName" placeholder="EMEPLOYEE Name">
+                <input type="text" id="newEmpName" placeholder="EMPLOYEE NAME">
                 <button type="button" style="padding: 8px 15px; margin: 0; background-color: #28a745;" onclick="createNewEmployee()">Register Employee</button>
             </div>
         </div>
@@ -269,6 +270,10 @@ let activeEmployeeId = "";
 let editingOldEmpId = ""; 
 let scanningMode = "ITEM"; 
 
+// Camera tracking state configurations
+let availableCameras = [];
+let currentCamIndex = 0;
+
 // Initialize the Instascan Object
 let scanner = new Instascan.Scanner({ video: document.getElementById('preview'), scanPeriod: 5 });
 
@@ -285,50 +290,69 @@ scanner.addListener('scan', function (content) {
     }
 });
 
-// 🛠️ NEW CAMERA ENGINE: Forces iOS/Android systems to look for back cameras (`environment`)
-function startBackCamera() {
-    updateBadgeDisplay("🔄 Initializing Back Camera...", "#007bff");
+// Optimized Back Camera Initialization Engine
+function initCameraSystem() {
+    updateBadgeDisplay("🔄 Initializing System Cameras...", "#007bff");
     
     Instascan.Camera.getCameras().then(function (cameras) {
         if (cameras.length > 0) {
-            // Check modern device camera constraints via facingMode parameter
-            navigator.mediaDevices.enumerateDevices().then(devices => {
-                const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                let selectedCamera = cameras[0]; // fallback
-                
-                // Advanced loop to identify real physical rear lenses on mobile devices
-                let backCamKeywords = ['back', 'rear', 'environment', 'main', 'dirección externa'];
-                let foundBackDevice = videoDevices.find(device => 
-                    backCamKeywords.some(keyword => device.label.toLowerCase().includes(keyword))
-                );
-                
-                if (foundBackDevice) {
-                    // Match native label strings to the instascan cameras array mapping list
-                    let matchedCam = cameras.find(c => c.name.toLowerCase().includes(foundBackDevice.label.toLowerCase()) || foundBackDevice.label.toLowerCase().includes(c.name.toLowerCase()));
-                    if (matchedCam) selectedCamera = matchedCam;
-                } else if (cameras.length > 1) {
-                    // Mobile browsers often sort back cameras last in legacy index orders
-                    selectedCamera = cameras[cameras.length - 1]; 
+            availableCameras = cameras;
+            
+            // Search algorithms to isolate back cameras across different hardware configurations
+            let targetIndex = 0; 
+            let backCamKeywords = ['back', 'rear', 'environment', 'main', 'camera 1', 'facing back', '0'];
+            
+            // Attempt smart prioritization mapping
+            for (let i = 0; i < cameras.length; i++) {
+                let label = cameras[i].name ? cameras[i].name.toLowerCase() : '';
+                if (backCamKeywords.some(keyword => label.includes(keyword))) {
+                    targetIndex = i;
+                    break;
                 }
-
-                scanner.start(selectedCamera).then(() => {
-                    setScannerBadge(scanningMode);
-                }).catch(err => {
-                    console.error("Camera execution error: ", err);
-                    updateBadgeDisplay("🔴 Stream Access Error", "#dc3545");
-                });
-            });
+            }
+            
+            // Failover prioritization rule: Mobile rear devices are typically loaded last in index queues
+            if (targetIndex === 0 && cameras.length > 1) {
+                targetIndex = cameras.length - 1;
+            }
+            
+            currentCamIndex = targetIndex;
+            startSelectedCamera();
         } else {
             updateBadgeDisplay("🔴 Camera not found.", "#dc3545");
         }
     }).catch(function(e) {
         console.error(e);
-        updateBadgeDisplay("🔴 Camera Blocked / HTTP Mode", "#dc3545");
+        updateBadgeDisplay("🔴 Permissions Blocked / Require HTTPS", "#dc3545");
     });
 }
 
-// Kick off system boot routine
-startBackCamera();
+function startSelectedCamera() {
+    if (availableCameras.length > 0) {
+        scanner.start(availableCameras[currentCamIndex]).then(() => {
+            setScannerBadge(scanningMode);
+        }).catch(err => {
+            console.error("Camera startup failure:", err);
+            updateBadgeDisplay("🔴 Stream Busy/Error", "#dc3545");
+        });
+    }
+}
+
+// Interactive runtime cycle switch logic (Activated via the layout toggle button)
+function cycleCameras() {
+    if (availableCameras.length <= 1) {
+        showSystemNotification("Toggle Unavailable", "This hardware package lists only 1 active camera device.", false);
+        return;
+    }
+    currentCamIndex = (currentCamIndex + 1) % availableCameras.length;
+    updateBadgeDisplay("🔄 Switching Lens...", "#34495e");
+    scanner.stop().then(() => {
+        startSelectedCamera();
+    });
+}
+
+// Execute camera pipeline configuration on page instantiation
+initCameraSystem();
 
 function switchTab(targetTab) {
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
