@@ -115,13 +115,14 @@
 
         <div class="dashboard-grid">
             <div class="scanner-section">
-                <h3>📷 Live QR Feed</h3>
-                <div id="videoContainer">
-                    <video id="preview" autoplay playsinline muted></video>
-                </div>
-        
-                <div id="scannerStatus" class="status-badge">🔄 Initializing...</div>
-            </div>
+    <h3>📷 Live QR Feed</h3>
+    <div id="videoContainer">
+        <video id="preview" autoplay playsinline muted></video>
+    </div>
+
+    <div id="scannerStatus" class="status-badge">🔄 Initializing...</div>
+    <button type="button" style="margin-top: 12px; font-size: 13px; padding: 6px 14px; background-color: #6c757d;" onclick="cycleCamera()">🔄 Switch Camera</button>
+</div>
 
             <div>
                 <h3>📋 Current Stock Levels</h3>
@@ -278,7 +279,6 @@ let availableCameras = [];
 let currentCamIndex = 0;
 let currentStream = null; 
 
-// Detect if user is on an iOS device (iPhone/iPad)
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 // Initialize the Instascan Object
@@ -297,24 +297,33 @@ scanner.addListener('scan', function (content) {
     handleItemScan(cleanCode);
 });
 
-// Clean up and stop hardware streams
+// CRITICAL FIX: Aggressively stops hardware tracks to unblock hardware locks
 function stopActiveStreams() {
+    if (scanner) {
+        try { scanner.stop(); } catch(e) {}
+    }
     if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
+        currentStream.getTracks().forEach(track => {
+            track.stop();
+            console.log("Hardware track released:", track.label);
+        });
         currentStream = null;
+    }
+    const videoElement = document.getElementById('preview');
+    if (videoElement) {
+        videoElement.srcObject = null;
     }
 }
 
-// Camera initialization system optimized to target the main back-facing sensor
 function initCameraSystem() {
-    updateBadgeDisplay("🔄 Locating main camera...", "#f39c12");
+    updateBadgeDisplay("🔄 Initializing system...", "#f39c12");
+    stopActiveStreams();
     
     Instascan.Camera.getCameras().then(function (cameras) {
         if (cameras.length > 0) {
-            // Filter list to prioritize standard camera profiles
+            // Filter out front cameras, keep standard back sensors
             const standardCameras = cameras.filter(cam => {
                 const label = cam.name.toLowerCase();
-                // Exclude front-facing, wide, ultra-wide, or zoom lenses
                 return !label.includes('front') && 
                        !label.includes('selfie') && 
                        !label.includes('wide') && 
@@ -323,19 +332,16 @@ function initCameraSystem() {
                        !label.includes('tele');
             });
 
-            // Use filtered standard list if possible; fallback to all available back cameras
             const filteredList = standardCameras.length > 0 ? standardCameras : cameras.filter(cam => !cam.name.toLowerCase().includes('front'));
             availableCameras = filteredList.length > 0 ? filteredList : cameras;
             
-            // Choose the first match from our standard camera list
             currentCamIndex = 0; 
             startSelectedCamera();
         } else {
             updateBadgeDisplay("❌ No cameras detected.", "#dc3545");
-            console.error('No cameras found on this device.');
         }
     }).catch(function (e) {
-        updateBadgeDisplay("❌ Camera block access denied.", "#dc3545");
+        updateBadgeDisplay("❌ Permissions Denied/Blocked", "#dc3545");
         console.error(e);
     });
 }
@@ -346,15 +352,11 @@ function startSelectedCamera() {
     let constraints;
 
     if (isIOS) {
-        // Safe standard rear camera routing for iOS using basic facingMode constraint
         constraints = {
-            video: {
-                facingMode: { exact: "environment" }
-            },
+            video: { facingMode: { exact: "environment" } },
             audio: false
         };
     } else {
-        // Android/Desktop: Target selected primary camera hardware ID
         let targetCamera = availableCameras[currentCamIndex];
         constraints = {
             video: targetCamera ? { 
@@ -366,7 +368,6 @@ function startSelectedCamera() {
         };
     }
 
-    // Modern WebRTC activation with fallback handler
     navigator.mediaDevices.getUserMedia(constraints)
         .then(function(stream) {
             currentStream = stream;
@@ -374,15 +375,19 @@ function startSelectedCamera() {
             videoElement.setAttribute("playsinline", true); 
             videoElement.play();
             
-            // Hand control off to Instascan
-            return scanner.start(availableCameras[currentCamIndex]);
+            if (isIOS || !availableCameras[currentCamIndex]) {
+                return scanner.start();
+            } else {
+                return scanner.start(availableCameras[currentCamIndex]);
+            }
         })
         .then(() => {
-            updateBadgeDisplay("🟢 Camera Active: Scan an Item", "#28a745");
+            let label = (availableCameras[currentCamIndex] && availableCameras[currentCamIndex].name) || "Rear Camera";
+            updateBadgeDisplay(`🟢 Active: ${label}`, "#28a745");
         })
         .catch(err => {
-            console.warn("Standard stream constraints failed. Executing basic environment fallback...", err);
-            // Re-attempting via generic fallback
+            console.warn("Primary constraints rejected, using generic fallback...", err);
+            
             const fallbackConstraints = { video: { facingMode: "environment" }, audio: false };
             navigator.mediaDevices.getUserMedia(fallbackConstraints)
                 .then(function(fallbackStream) {
@@ -392,16 +397,27 @@ function startSelectedCamera() {
                     return scanner.start();
                 })
                 .then(() => {
-                    updateBadgeDisplay("🟢 Camera Active (Fallback)", "#28a745");
+                    updateBadgeDisplay("🟢 Camera Active (Fallback Mode)", "#28a745");
                 })
                 .catch(error => {
-                    updateBadgeDisplay("❌ Camera Initialisation Failed", "#dc3545");
-                    console.error("Camera access failed completely:", error);
+                    updateBadgeDisplay("❌ Camera Stream Blocked", "#dc3545");
+                    console.error("Complete hardware failure:", error);
                 });
         });
 }
 
-// Call camera activation sequence
+// Manual cycle mechanism bound to the new button interface
+function cycleCamera() {
+    if (availableCameras.length <= 1) {
+        updateBadgeDisplay("🔄 Only 1 back camera found. Retrying...", "#f39c12");
+        initCameraSystem();
+        return;
+    }
+    currentCamIndex = (currentCamIndex + 1) % availableCameras.length;
+    startSelectedCamera();
+}
+
+// Initialize on page boot
 initCameraSystem();
 
 function switchTab(targetTab) {
@@ -569,7 +585,6 @@ function openEmployeeSelectionModal() {
     
     pendingReleaseQty = qty;
     
-    // Build Employee Dropdown options dynamically from registered records
     const dropdown = document.getElementById("employeeDropdown");
     dropdown.innerHTML = '<option value="" disabled selected>-- Choose an Employee --</option>';
     
@@ -709,6 +724,9 @@ function updateBadgeDisplay(text, color) {
     badge.innerText = text;
     badge.style.background = color;
 }
+
+// Global window event: ensure hardware is fully freed up if user abruptly closes/refreshes window
+window.addEventListener('beforeunload', stopActiveStreams);
 
 function openModal(id) {
     document.querySelectorAll('.modal').forEach(m => m.style.display = "none");
