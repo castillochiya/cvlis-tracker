@@ -1,6 +1,3 @@
-
-
-Cvlis inventory tracker · HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,23 +10,23 @@ Cvlis inventory tracker · HTML
         body { font-family: Arial, sans-serif; margin: 15px; background-color: #f4f4f9; display: flex; justify-content: center; }
         .container { width: 100%; max-width: 950px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); box-sizing: border-box; }
         h2, h3 { color: #333; margin-top: 0; }
- 
+
         .titlebar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
         .sync-status { font-size: 12px; color: #666; background: #f1f3f5; padding: 4px 10px; border-radius: 20px; display: flex; align-items: center; gap: 6px; }
         .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #28a745; display: inline-block; }
         .sync-dot.stale { background: #f39c12; }
         .sync-dot.error { background: #dc3545; }
- 
+
         /* Menu Bar Styles */
         .navbar { display: flex; background: #2c3e50; border-radius: 8px; margin-bottom: 25px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .nav-item { flex: 1; text-align: center; padding: 14px; color: #ecf0f1; cursor: pointer; font-weight: bold; transition: background 0.2s, color 0.2s; user-select: none; font-size: 14px; }
         .nav-item:hover { background: #34495e; color: #fff; }
         .nav-item.active { background: #007bff; color: white; }
- 
+
         /* Tab Content Toggling */
         .tab-content { display: none; }
         .tab-content.active { display: block; }
- 
+
         /* Layout Grid */
         .dashboard-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; margin-top: 20px; }
         @media (max-width: 768px) { 
@@ -39,7 +36,7 @@ Cvlis inventory tracker · HTML
             .navbar { flex-direction: row; }
             .nav-item { padding: 10px; font-size: 12px; }
         }
- 
+
         /* Scanner Section Layout */
         .scanner-section { background: #e9ecef; padding: 20px; border-radius: 8px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;}
         #preview { width: 100%; max-width: 320px; height: auto; border: 3px solid #333; border-radius: 8px; background: #000; }
@@ -58,7 +55,7 @@ Cvlis inventory tracker · HTML
         button.action-btn { padding: 4px 8px; font-size: 12px; margin: 0 2px; border-radius: 4px; font-weight: normal; }
         button.edit-btn { background-color: #ffc107; color: #212529; }
         button.edit-btn:hover { background-color: #e0a800; }
- 
+
         .table-container { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 15px; height: 350px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
@@ -76,40 +73,40 @@ Cvlis inventory tracker · HTML
         .modal select { text-align-last: center; }
         input[type="number"], input[type="date"], .modal input[type="text"] { text-align: center; }
         .modal label { font-size: 13px; font-weight: bold; color: #555; text-align: left; display: block; margin-left: 2%; margin-top: 5px; }
- 
+
         /* Notification Icon Layout States */
         .notif-icon { font-size: 48px; margin-bottom: 10px; display: block; }
         .notif-success { color: #28a745; }
         .notif-error { color: #dc3545; }
- 
+
         .log-add { color: #28a745; font-weight: bold; }
         .log-release { color: #dc3545; font-weight: bold; }
         .unit-label { font-size: 12px; color: #666; background: #e9ecef; padding: 2px 6px; border-radius: 4px; margin-left: 5px; }
- 
+
         /* Layout header for report tools */
         .report-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .report-header h3 { margin: 0; }
- 
+
         .btn-spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; vertical-align: -1px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.7); display: flex; align-items: center; justify-content: center; font-weight: bold; color: #555; }
     </style>
 </head>
 <body>
- 
+
 <div class="container">
     <div class="titlebar">
         <h2>📦 CVLIS Inventory Tracker</h2>
         <div class="sync-status"><span id="syncDot" class="sync-dot"></span><span id="syncText">Syncing…</span></div>
     </div>
     <p style="margin-top:-14px; font-size:12px; color:#888;">🔗 Inventory, personnel, and logs are shared storage — visible to everyone using this tracker.</p>
- 
+
     <div class="navbar">
         <div id="nav-inventory" class="nav-item active" onclick="switchTab('inventory')">📦 Inventory</div>
         <div id="nav-employees" class="nav-item" onclick="switchTab('employees')">👥 Employees</div>
         <div id="nav-report" class="nav-item" onclick="switchTab('report')">📊 Report</div>
     </div>
- 
+
     <div id="tab-inventory" class="tab-content active">
         <div class="management-box">
             <h4 style="margin: 0; color: #007bff;">➕ Add New Item Type</h4>
@@ -128,7 +125,7 @@ Cvlis inventory tracker · HTML
                 <button type="button" id="registerItemBtn" style="padding: 8px 15px; margin: 0;" onclick="createNewItemType()">Register Item</button>
             </div>
         </div>
- 
+
         <div class="dashboard-grid">
             <div class="scanner-section">
                 <h3>📷 Live QR Feed</h3>
@@ -139,7 +136,7 @@ Cvlis inventory tracker · HTML
                 <button id="switchCamBtn" style="background: #34495e; font-size: 12px; padding: 6px 12px; margin-top: 10px;" onclick="cycleCameras()">🔄 Switch Camera Lens</button>
                 <div id="scannerStatus" class="status-badge">🔄 Initializing...</div>
             </div>
- 
+
             <div>
                 <h3>📋 Current Stock Levels</h3>
                 <div class="table-container">
@@ -154,7 +151,7 @@ Cvlis inventory tracker · HTML
             </div>
         </div>
     </div>
- 
+
     <div id="tab-employees" class="tab-content">
         <div class="management-box">
             <h4 style="margin: 0; color: #28a745;">➕ Add New Personnel / Receiver</h4>
@@ -166,7 +163,7 @@ Cvlis inventory tracker · HTML
                 <button type="button" id="registerEmpBtn" style="padding: 8px 15px; margin: 0; background-color: #28a745;" onclick="createNewEmployee()">Register Employee</button>
             </div>
         </div>
- 
+
         <div class="management-box" style="border-color:#28a745;">
             <h4 style="margin: 0; color: #28a745;">📤 Bulk Upload from Excel</h4>
             <p style="margin: 2px 0 10px 0; font-size: 12px; color: #666;">
@@ -178,7 +175,7 @@ Cvlis inventory tracker · HTML
                 <button type="button" id="uploadEmpBtn" style="padding: 8px 15px; margin: 0; background-color: #28a745;" onclick="importEmployeesFromExcel()">Upload &amp; Import</button>
             </div>
         </div>
- 
+
         <h3>👥 Registered Personnel Registry</h3>
         <div class="table-container" style="height: 350px;">
             <table>
@@ -189,7 +186,7 @@ Cvlis inventory tracker · HTML
             </table>
         </div>
     </div>
- 
+
     <div id="tab-report" class="tab-content">
         <div class="report-header">
             <h3 style="margin: 0;">📜 Transaction Audit Log (Tracking System)</h3>
@@ -205,7 +202,7 @@ Cvlis inventory tracker · HTML
         </div>
     </div>
 </div>
- 
+
 <div id="optionsModal" class="modal">
     <div class="modal-content">
         <h3 id="modalItemTitle">Item Detected</h3>
@@ -215,7 +212,7 @@ Cvlis inventory tracker · HTML
         <br><br><button style="background:#6c757d; width: 100%;" onclick="closeModals()">Cancel Action</button>
     </div>
 </div>
- 
+
 <div id="addModal" class="modal">
     <div class="modal-content">
         <h3>How many to ADD?</h3>
@@ -224,7 +221,7 @@ Cvlis inventory tracker · HTML
         <br><br><button style="background:#6c757d; width: 100%;" onclick="closeModals()">Cancel</button>
     </div>
 </div>
- 
+
 <div id="releaseModal" class="modal">
     <div class="modal-content">
         <h3>How many to RELEASE?</h3>
@@ -233,7 +230,7 @@ Cvlis inventory tracker · HTML
         <br><br><button style="background:#6c757d; width: 100%;" onclick="closeModals()">Cancel</button>
     </div>
 </div>
- 
+
 <div id="employeeModal" class="modal">
     <div class="modal-content">
         <h3>👤 Receiver Verification</h3>
@@ -252,7 +249,7 @@ Cvlis inventory tracker · HTML
         <br><br><button style="background:#6c757d; width: 100%;" onclick="closeModals()">Cancel Transaction</button>
     </div>
 </div>
- 
+
 <div id="editEmployeeModal" class="modal">
     <div class="modal-content">
         <h3 style="color: #ffc107; margin-bottom: 10px;">✏️ Edit Employee Profile</h3>
@@ -263,7 +260,7 @@ Cvlis inventory tracker · HTML
         
         <label for="editEmpNameInput">Full Name:</label>
         <input type="text" id="editEmpNameInput">
- 
+
         <label for="editEmpPositionInput">Position:</label>
         <input type="text" id="editEmpPositionInput">
         
@@ -272,7 +269,7 @@ Cvlis inventory tracker · HTML
         <button style="background:#6c757d; width: 100%; margin-top: 5px;" onclick="closeModals()">Cancel Changes</button>
     </div>
 </div>
- 
+
 <div id="notificationModal" class="modal">
     <div class="modal-content">
         <span id="notifIcon" class="notif-icon"></span>
@@ -281,7 +278,7 @@ Cvlis inventory tracker · HTML
         <button id="notifCloseBtn" style="width: 100%; background-color: #007bff;" onclick="closeModals()">Acknowledge</button>
     </div>
 </div>
- 
+
 <script>
 // ============================================================
 // SEED DATA
@@ -296,22 +293,59 @@ const defaultEmployeeItems = {
     "EMP02": { name: "Maria Santos", position: "Procurement Officer" },
     "EMP03": { name: "Alex King", position: "IT Support" }
 };
- 
+
 // Local in-memory mirrors of shared storage. Each has shape { rev, items }
 let inventory = { rev: 0, items: {} };
 let employees = { rev: 0, items: {} };
 let transactionLogs = { rev: 0, items: [] };
- 
+
 const STORAGE_KEYS = { inventory: "cvlis_inventory", employees: "cvlis_employees", logs: "cvlis_logs" };
+
+// `window.storage` only exists inside Claude.ai's artifact sandbox. When this
+// file is hosted elsewhere (GitHub Pages, opened locally, etc.) we fall back
+// to plain localStorage so the app still works — note this fallback is
+// per-browser only, so the "shared across devices" behavior described in the
+// UI requires running inside a Claude.ai artifact, or wiring up your own
+// backend (e.g. Firebase, Supabase) if you want real cross-device sync here.
+if (!window.storage) {
+    console.warn("window.storage not found — falling back to localStorage (single browser only, no cross-device sync).");
+    window.storage = {
+        async get(key) {
+            const raw = localStorage.getItem("cvlis_fallback_" + key);
+            if (raw === null) throw new Error("Key not found: " + key);
+            return { key, value: raw, shared: true };
+        },
+        async set(key, value) {
+            localStorage.setItem("cvlis_fallback_" + key, value);
+            return { key, value, shared: true };
+        },
+        async delete(key) {
+            const existed = localStorage.getItem("cvlis_fallback_" + key) !== null;
+            localStorage.removeItem("cvlis_fallback_" + key);
+            return { key, deleted: existed, shared: true };
+        },
+        async list(prefix) {
+            const keys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.startsWith("cvlis_fallback_")) {
+                    const stripped = k.slice("cvlis_fallback_".length);
+                    if (!prefix || stripped.startsWith(prefix)) keys.push(stripped);
+                }
+            }
+            return { keys, prefix, shared: true };
+        }
+    };
+}
 const MAX_LOG_ENTRIES = 500;
 const POLL_INTERVAL_MS = 5000;
- 
+
 let activeItemId = "";
 let pendingReleaseQty = 0;
 let activeEmployeeId = "";
 let editingOldEmpId = "";
 let dataReady = false;
- 
+
 // ============================================================
 // SHARED STORAGE LAYER
 // Every mutation re-fetches the freshest copy right before writing,
@@ -319,7 +353,7 @@ let dataReady = false;
 // If another device raced us in between, we retry with fresh data
 // instead of silently clobbering their change (or going negative).
 // ============================================================
- 
+
 async function safeGet(key) {
     try {
         return await window.storage.get(key, true);
@@ -327,7 +361,7 @@ async function safeGet(key) {
         return null; // key doesn't exist yet, or a transient error
     }
 }
- 
+
 async function loadOrSeed(key, defaultItems) {
     const res = await safeGet(key);
     if (res && res.value) {
@@ -344,7 +378,7 @@ async function loadOrSeed(key, defaultItems) {
     }
     return seeded;
 }
- 
+
 // Older versions of this tracker stored employees as { empId: "Name" }.
 // Upgrade any such records in place so the rest of the app can assume
 // { empId: { name, position } } everywhere.
@@ -358,7 +392,7 @@ function normalizeEmployeeShape(empData) {
     }
     return empData;
 }
- 
+
 async function loadAllData() {
     const [inv, emp, logs] = await Promise.all([
         loadOrSeed(STORAGE_KEYS.inventory, defaultInventoryItems),
@@ -372,7 +406,7 @@ async function loadAllData() {
     renderTables();
     setSyncStatus("ok", "Synced");
 }
- 
+
 // Generic optimistic-concurrency writer. mutatorFn receives the freshest
 // { rev, items } object and should mutate + return it, or throw an
 // Error with a user-facing message to abort (e.g. "already exists",
@@ -386,10 +420,10 @@ async function mutateShared(key, mutatorFn, maxRetries = 6) {
         } catch (e) {
             latest = { rev: 0, items: {} };
         }
- 
+
         const updated = mutatorFn(latest); // may throw a validation error -> bubble up, no retry
         updated.rev = (latest.rev || 0) + 1;
- 
+
         let setResult;
         try {
             setResult = await window.storage.set(key, JSON.stringify(updated), true);
@@ -400,14 +434,14 @@ async function mutateShared(key, mutatorFn, maxRetries = 6) {
             await sleep(100 + Math.random() * 150);
             continue;
         }
- 
+
         // Verify the write actually stuck (nobody raced us between set and now)
         const verifyRes = await safeGet(key);
         let verified = null;
         try {
             verified = verifyRes && verifyRes.value ? JSON.parse(verifyRes.value) : null;
         } catch (e) { /* ignore */ }
- 
+
         if (verified && verified.rev === updated.rev) {
             return updated; // success, no race
         }
@@ -416,13 +450,13 @@ async function mutateShared(key, mutatorFn, maxRetries = 6) {
     }
     throw new Error("Too many people are updating this at once — please try again.");
 }
- 
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
- 
+
 async function refreshInventory() { const r = await safeGet(STORAGE_KEYS.inventory); if (r && r.value) try { inventory = JSON.parse(r.value); } catch(e){} }
 async function refreshEmployees() { const r = await safeGet(STORAGE_KEYS.employees); if (r && r.value) try { employees = normalizeEmployeeShape(JSON.parse(r.value)); } catch(e){} }
 async function refreshLogs() { const r = await safeGet(STORAGE_KEYS.logs); if (r && r.value) try { transactionLogs = JSON.parse(r.value); } catch(e){} }
- 
+
 async function appendLog(itemId, action, qty, employeeLabel, authorizedDate) {
     const timestamp = new Date().toLocaleString();
     try {
@@ -436,7 +470,7 @@ async function appendLog(itemId, action, qty, employeeLabel, authorizedDate) {
         console.warn("Log append failed (transaction itself still succeeded):", e);
     }
 }
- 
+
 // Background sync so every device converges on the same shared state
 function startPolling() {
     setInterval(async () => {
@@ -453,7 +487,7 @@ function startPolling() {
         }
     }, POLL_INTERVAL_MS);
 }
- 
+
 function setSyncStatus(state, text) {
     const dot = document.getElementById("syncDot");
     const label = document.getElementById("syncText");
@@ -461,7 +495,7 @@ function setSyncStatus(state, text) {
     dot.className = "sync-dot" + (state === "ok" ? "" : " " + state);
     label.innerText = text;
 }
- 
+
 // ============================================================
 // QR SCANNING (jsQR — actively maintained, works via getUserMedia +
 // canvas frame sampling, no deprecated camera-enumeration APIs)
@@ -474,9 +508,9 @@ let iosToggleCount = 0;
 let scanning = false;
 let lastScanCode = "";
 let lastScanTime = 0;
- 
+
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
- 
+
 function stopActiveStreams() {
     scanning = false;
     if (currentStream) {
@@ -484,7 +518,7 @@ function stopActiveStreams() {
         currentStream = null;
     }
 }
- 
+
 async function initCameraSystem() {
     updateBadgeDisplay("🔄 Initializing System Cameras...", "#007bff");
     stopActiveStreams();
@@ -492,10 +526,10 @@ async function initCameraSystem() {
         // Request permission first so device labels are populated for the back-camera heuristic
         const tempStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         tempStream.getTracks().forEach(t => t.stop());
- 
+
         const devices = await navigator.mediaDevices.enumerateDevices();
         availableCameras = devices.filter(d => d.kind === "videoinput");
- 
+
         let targetIndex = 0;
         const backKeywords = ['back', 'rear', 'environment', 'main'];
         for (let i = 0; i < availableCameras.length; i++) {
@@ -504,19 +538,19 @@ async function initCameraSystem() {
         }
         if (targetIndex === 0 && availableCameras.length > 1) targetIndex = availableCameras.length - 1;
         currentCamIndex = targetIndex;
- 
+
         await startSelectedCamera();
     } catch (e) {
         console.error(e);
         updateBadgeDisplay("🔴 Permissions Blocked / Requires HTTPS", "#dc3545");
     }
 }
- 
+
 async function startSelectedCamera() {
     videoElement = videoElement || document.getElementById('preview');
     canvasElement = canvasElement || document.getElementById('qrCanvas');
     canvasCtx = canvasCtx || canvasElement.getContext('2d', { willReadFrequently: true });
- 
+
     const targetCamera = availableCameras[currentCamIndex];
     let constraints;
     if (targetCamera && targetCamera.deviceId) {
@@ -526,7 +560,7 @@ async function startSelectedCamera() {
     } else {
         constraints = { video: { facingMode: "environment" }, audio: false };
     }
- 
+
     try {
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         currentStream = stream;
@@ -551,7 +585,7 @@ async function startSelectedCamera() {
         }
     }
 }
- 
+
 function scanTick() {
     if (!scanning) return;
     if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
@@ -573,7 +607,7 @@ function scanTick() {
     }
     requestAnimationFrame(scanTick);
 }
- 
+
 function cycleCameras() {
     updateBadgeDisplay("🔄 Switching Lens...", "#34495e");
     stopActiveStreams();
@@ -584,9 +618,9 @@ function cycleCameras() {
     }
     startSelectedCamera();
 }
- 
+
 initCameraSystem();
- 
+
 function handleRawScan(content) {
     let cleanCode = content.trim().toUpperCase();
     if (cleanCode.includes("://") || cleanCode.includes("WWW.")) {
@@ -595,7 +629,7 @@ function handleRawScan(content) {
     }
     handleItemScan(cleanCode);
 }
- 
+
 // ============================================================
 // UI PLUMBING
 // ============================================================
@@ -605,13 +639,13 @@ function switchTab(targetTab) {
     document.getElementById(`tab-${targetTab}`).classList.add('active');
     document.getElementById(`nav-${targetTab}`).classList.add('active');
 }
- 
+
 function showSystemNotification(title, message, isSuccess = true) {
     const iconSpan = document.getElementById("notifIcon");
     const titleH3 = document.getElementById("notifTitle");
     const msgP = document.getElementById("notifMessage");
     const closeBtn = document.getElementById("notifCloseBtn");
- 
+
     if (isSuccess) {
         iconSpan.innerText = "✅";
         iconSpan.className = "notif-icon notif-success";
@@ -623,34 +657,34 @@ function showSystemNotification(title, message, isSuccess = true) {
         titleH3.style.color = "#dc3545";
         closeBtn.style.backgroundColor = "#dc3545";
     }
- 
+
     titleH3.innerText = title;
     msgP.innerText = message;
     openModal("notificationModal");
 }
- 
+
 function setBtnBusy(btnId, busy, busyLabel, normalLabel) {
     const btn = document.getElementById(btnId);
     if (!btn) return;
     btn.disabled = busy;
     btn.innerHTML = busy ? `<span class="btn-spinner"></span>${busyLabel}` : normalLabel;
 }
- 
+
 // --- INVENTORY MANAGEMENT ENGINES ---
 async function createNewItemType() {
     let idInput = document.getElementById("newItemId");
     let nameInput = document.getElementById("newItemName");
     let unitInput = document.getElementById("newItemUnit");
- 
+
     let itemId = idInput.value.trim().toUpperCase();
     let itemName = nameInput.value.trim();
     let itemUnit = unitInput.value;
- 
+
     if (!itemId || !itemName) {
         showSystemNotification("Registration Void", "Please fill out both the Item ID and Item Name fields.", false);
         return;
     }
- 
+
     setBtnBusy("registerItemBtn", true, "Saving…", "Register Item");
     try {
         await mutateShared(STORAGE_KEYS.inventory, (latest) => {
@@ -669,7 +703,7 @@ async function createNewItemType() {
         setBtnBusy("registerItemBtn", false, "", "Register Item");
     }
 }
- 
+
 async function deleteItem(itemId) {
     if (!confirm(`⚠️ Completely delete "${inventory.items[itemId].name}" (${itemId})?`)) return;
     try {
@@ -688,7 +722,7 @@ async function deleteItem(itemId) {
         renderTables();
     }
 }
- 
+
 // --- PERSONNEL MANAGEMENT ENGINES ---
 async function createNewEmployee() {
     let idInput = document.getElementById("newEmpId");
@@ -697,12 +731,12 @@ async function createNewEmployee() {
     let empId = idInput.value.trim().toUpperCase();
     let empName = nameInput.value.trim();
     let empPosition = positionInput.value.trim();
- 
+
     if (!empId || !empName) {
         showSystemNotification("Input Blank", "Please fill out both the Employee ID and Full Name fields.", false);
         return;
     }
- 
+
     setBtnBusy("registerEmpBtn", true, "Saving…", "Register Employee");
     try {
         await mutateShared(STORAGE_KEYS.employees, (latest) => {
@@ -720,12 +754,12 @@ async function createNewEmployee() {
         setBtnBusy("registerEmpBtn", false, "", "Register Employee");
     }
 }
- 
+
 // --- BULK IMPORT FROM EXCEL ---
 function normalizeHeaderKey(key) {
     return String(key || "").trim().toUpperCase().replace(/\s+/g, " ");
 }
- 
+
 async function importEmployeesFromExcel() {
     const fileInput = document.getElementById("empExcelInput");
     const file = fileInput.files && fileInput.files[0];
@@ -737,7 +771,7 @@ async function importEmployeesFromExcel() {
         showSystemNotification("Import Unavailable", "The Excel import library failed to load. Check your connection and try again.", false);
         return;
     }
- 
+
     setBtnBusy("uploadEmpBtn", true, "Importing…", "Upload & Import");
     try {
         const rows = await parseExcelFile(file);
@@ -745,21 +779,21 @@ async function importEmployeesFromExcel() {
             showSystemNotification("Empty File", "No rows were found in the uploaded file.", false);
             return;
         }
- 
+
         // Build a lookup from normalized header -> actual key present in the row
         const sampleRow = rows[0];
         const headerMap = {};
         Object.keys(sampleRow).forEach(k => { headerMap[normalizeHeaderKey(k)] = k; });
- 
+
         const numKey = headerMap["EMPLOYEE NUMBER"];
         const nameKey = headerMap["EMPLOYEE NAME"];
         const posKey = headerMap["POSITION"];
- 
+
         if (!numKey || !nameKey) {
             showSystemNotification("Missing Columns", 'The file must include "EMPLOYEE NUMBER" and "EMPLOYEE NAME" columns.', false);
             return;
         }
- 
+
         const parsedEmployees = [];
         let skipped = 0;
         rows.forEach(row => {
@@ -769,12 +803,12 @@ async function importEmployeesFromExcel() {
             if (!empId || !empName) { skipped++; return; }
             parsedEmployees.push({ empId, empName, empPosition });
         });
- 
+
         if (parsedEmployees.length === 0) {
             showSystemNotification("Nothing to Import", "No valid rows with both an Employee Number and Employee Name were found.", false);
             return;
         }
- 
+
         let addedCount = 0, updatedCount = 0;
         await mutateShared(STORAGE_KEYS.employees, (latest) => {
             addedCount = 0; updatedCount = 0; // reset in case of retry
@@ -784,7 +818,7 @@ async function importEmployeesFromExcel() {
             });
             return latest;
         });
- 
+
         await refreshEmployees();
         renderTables();
         fileInput.value = "";
@@ -798,7 +832,7 @@ async function importEmployeesFromExcel() {
         setBtnBusy("uploadEmpBtn", false, "", "Upload & Import");
     }
 }
- 
+
 function parseExcelFile(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -818,7 +852,7 @@ function parseExcelFile(file) {
         reader.readAsArrayBuffer(file);
     });
 }
- 
+
 function editEmployee(oldEmpId) {
     editingOldEmpId = oldEmpId;
     document.getElementById("editEmpIdInput").value = oldEmpId;
@@ -826,17 +860,17 @@ function editEmployee(oldEmpId) {
     document.getElementById("editEmpPositionInput").value = employees.items[oldEmpId].position || "";
     openModal("editEmployeeModal");
 }
- 
+
 async function submitEmployeeEdit() {
     let newEmpId = document.getElementById("editEmpIdInput").value.trim().toUpperCase();
     let newName = document.getElementById("editEmpNameInput").value.trim();
     let newPosition = document.getElementById("editEmpPositionInput").value.trim();
- 
+
     if (!newEmpId || !newName) {
         showSystemNotification("Blank Fields", "Employee configurations cannot save empty fields.", false);
         return;
     }
- 
+
     const oldEmpId = editingOldEmpId;
     setBtnBusy("saveEmpEditBtn", true, "Saving…", "Save Changes");
     try {
@@ -857,7 +891,7 @@ async function submitEmployeeEdit() {
         setBtnBusy("saveEmpEditBtn", false, "", "Save Changes");
     }
 }
- 
+
 async function deleteEmployee(empId) {
     if (!confirm(`⚠️ Remove employee "${employees.items[empId].name}" (${empId})?`)) return;
     try {
@@ -871,7 +905,7 @@ async function deleteEmployee(empId) {
         showSystemNotification("Remove Failed", e.message, false);
     }
 }
- 
+
 // --- TRANSACTION LIFECYCLE ---
 function handleItemScan(id) {
     if (!inventory.items[id]) {
@@ -882,7 +916,7 @@ function handleItemScan(id) {
     document.getElementById("modalItemTitle").innerText = `Detected: ${inventory.items[id].name}`;
     openModal("optionsModal");
 }
- 
+
 function handleReleaseVerification() {
     if (inventory.items[activeItemId].quantity <= 0) {
         showSystemNotification("Release Rejected", `Transaction Denied: "${inventory.items[activeItemId].name}" is out of stock (Quantity is 0).`, false);
@@ -890,14 +924,14 @@ function handleReleaseVerification() {
         openModal("releaseModal");
     }
 }
- 
+
 function openAddModal() { openModal("addModal"); }
- 
+
 async function submitAdd() {
     let qty = parseInt(document.getElementById("addQty").value);
     if (!(qty > 0)) return;
     const itemId = activeItemId;
- 
+
     setBtnBusy("submitAddBtn", true, "Saving…", "Submit to Inventory");
     try {
         await mutateShared(STORAGE_KEYS.inventory, (latest) => {
@@ -917,10 +951,10 @@ async function submitAdd() {
         setBtnBusy("submitAddBtn", false, "", "Submit to Inventory");
     }
 }
- 
+
 async function openEmployeeSelectionModal() {
     let qty = parseInt(document.getElementById("releaseQty").value);
- 
+
     // Re-sync before showing available quantity, so this check reflects reality
     await refreshInventory();
     if (!inventory.items[activeItemId]) {
@@ -933,24 +967,24 @@ async function openEmployeeSelectionModal() {
         renderTables();
         return;
     }
- 
+
     pendingReleaseQty = qty;
- 
+
     const dropdown = document.getElementById("employeeDropdown");
     dropdown.innerHTML = '<option value="" disabled selected>-- Choose an Employee --</option>';
     for (let empId in employees.items) {
         dropdown.innerHTML += `<option value="${empId}">${employees.items[empId].name} (${empId})</option>`;
     }
- 
+
     document.getElementById("releaseDate").valueAsDate = new Date();
     document.getElementById("finalReleaseBtn").disabled = true;
     openModal("employeeModal");
 }
- 
+
 function handleEmployeeSelect() {
     let dropdown = document.getElementById("employeeDropdown");
     let submitBtn = document.getElementById("finalReleaseBtn");
- 
+
     if (dropdown.value) {
         activeEmployeeId = dropdown.value;
         submitBtn.disabled = false;
@@ -958,14 +992,14 @@ function handleEmployeeSelect() {
         submitBtn.disabled = true;
     }
 }
- 
+
 async function submitRelease() {
     const qty = pendingReleaseQty;
     const itemId = activeItemId;
     const empId = activeEmployeeId;
     const authDate = document.getElementById("releaseDate").value;
     const empLabel = employees.items[empId] ? employees.items[empId].name : empId;
- 
+
     setBtnBusy("finalReleaseBtn", true, "Processing…", "Confirm & Deduct Stock");
     try {
         await mutateShared(STORAGE_KEYS.inventory, (latest) => {
@@ -989,17 +1023,17 @@ async function submitRelease() {
         setBtnBusy("finalReleaseBtn", false, "", "Confirm & Deduct Stock");
     }
 }
- 
+
 // --- EXCEL (CSV) EXPORT UTILITY ---
 function exportToExcel() {
     if (transactionLogs.items.length === 0) {
         showSystemNotification("Export Warning", "There are no transaction records to export yet.", false);
         return;
     }
- 
+
     let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
     csvContent += "System Timestamp,Product Item ID,Action Type,Quantity Ordered,Authorized Employee/Recipient,Signature Release Date\r\n";
- 
+
     transactionLogs.items.forEach(log => {
         let row = [
             `"${log.timestamp}"`,
@@ -1011,19 +1045,19 @@ function exportToExcel() {
         ].join(",");
         csvContent += row + "\r\n";
     });
- 
+
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
- 
+
     const fileTimestamp = new Date().toISOString().slice(0, 10);
     link.setAttribute("download", `CVLIS_Inventory_Report_${fileTimestamp}.csv`);
- 
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 }
- 
+
 // --- RENDERING ---
 function renderTables() {
     const invBody = document.getElementById("inventoryTable");
@@ -1040,7 +1074,7 @@ function renderTables() {
             </td>
         </tr>`;
     }
- 
+
     const empBody = document.getElementById("employeesTable");
     empBody.innerHTML = "";
     for (let empId in employees.items) {
@@ -1055,7 +1089,7 @@ function renderTables() {
             </td>
         </tr>`;
     }
- 
+
     const logBody = document.getElementById("logTable");
     logBody.innerHTML = "";
     if (!transactionLogs.items || transactionLogs.items.length === 0) {
@@ -1064,7 +1098,7 @@ function renderTables() {
         transactionLogs.items.forEach(log => {
             let actionClass = "log-add";
             if (log.action === "RELEASE" || log.action === "DELETE") actionClass = "log-release";
- 
+
             logBody.innerHTML += `<tr>
                 <td>${log.timestamp}</td>
                 <td><strong>${log.itemId}</strong></td>
@@ -1076,18 +1110,18 @@ function renderTables() {
         });
     }
 }
- 
+
 function updateBadgeDisplay(text, color) {
     const badge = document.getElementById("scannerStatus");
     badge.innerText = text;
     badge.style.background = color;
 }
- 
+
 function openModal(id) {
     document.querySelectorAll('.modal').forEach(m => m.style.display = "none");
     document.getElementById(id).style.display = "flex";
 }
- 
+
 function closeModals() {
     document.querySelectorAll('.modal').forEach(m => m.style.display = "none");
     document.getElementById("finalReleaseBtn").disabled = true;
@@ -1096,7 +1130,7 @@ function closeModals() {
     activeEmployeeId = "";
     editingOldEmpId = "";
 }
- 
+
 async function resetDatabase() {
     if (!confirm("⚠️ This clears SHARED history and stock for everyone using this tracker, not just you. Continue?")) return;
     try {
@@ -1116,7 +1150,7 @@ async function resetDatabase() {
         showSystemNotification("Reset Failed", "Could not reset shared data. Please try again.", false);
     }
 }
- 
+
 // ============================================================
 // BOOT
 // ============================================================
@@ -1138,4 +1172,3 @@ async function resetDatabase() {
 </script>
 </body>
 </html>
- 
