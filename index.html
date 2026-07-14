@@ -120,11 +120,7 @@
                     <option value="set">set</option>
                     <option value="unit">unit</option>
                     <option value="pack">pack</option>
-                    <option value="kg">kg</option>
-                </select>
-                <select id="newItemClassification">
-                    <option value="non-consumable">Non-Consumable</option>
-                    <option value="consumable">Consumable</option>
+                    <option value="ream">ream</option>
                 </select>
                 <button type="button" id="registerItemBtn" style="padding: 8px 15px; margin: 0;" onclick="createNewItemType()">Register Item</button>
             </div>
@@ -145,7 +141,7 @@
                 <div class="table-container">
                     <table>
                         <thead>
-                            <tr><th>Item ID</th><th>Item Name / Unit</th><th>Classification</th><th>In Stock</th><th style="width: 70px; text-align: center;">Action</th></tr>
+                            <tr><th>Item ID</th><th>Item Name / Unit</th><th>In Stock</th><th style="width: 70px; text-align: center;">Action</th></tr>
                         </thead>
                         <tbody id="inventoryTable"></tbody>
                     </table>
@@ -154,30 +150,8 @@
             </div>
         </div>
 
-        <h3 style="margin-top:25px;">📄 Inventory Custodian Slip (ICS)</h3>
-        <p style="margin: 2px 0 10px 0; font-size: 12px; color: #666;">Non-consumable items valued at ₱49,999.99 and below.</p>
-        <div class="table-container" style="height: 260px;">
-            <table>
-                <thead>
-                    <tr><th>Item ID</th><th>Item Name</th><th>Unit</th><th>Quantity</th><th>Unit Value (₱)</th></tr>
-                </thead>
-                <tbody id="icsTable"></tbody>
-            </table>
-        </div>
-
-        <h3 style="margin-top:25px;">📄 Property Acknowledgement Receipt (PAR)</h3>
-        <p style="margin: 2px 0 10px 0; font-size: 12px; color: #666;">Non-consumable items valued at ₱50,000.00 and above.</p>
-        <div class="table-container" style="height: 260px;">
-            <table>
-                <thead>
-                    <tr><th>Item ID</th><th>Item Name</th><th>Unit</th><th>Quantity</th><th>Unit Value (₱)</th></tr>
-                </thead>
-                <tbody id="parTable"></tbody>
-            </table>
-        </div>
-
         <h3 style="margin-top:25px;">📄 Requisition and Issuance Slip (RIS)</h3>
-        <p style="margin: 2px 0 10px 0; font-size: 12px; color: #666;">Consumable items.</p>
+        <p style="margin: 2px 0 10px 0; font-size: 12px; color: #666;">All registered items.</p>
         <div class="table-container" style="height: 260px;">
             <table>
                 <thead>
@@ -248,16 +222,6 @@
                 <tbody id="logTable"></tbody>
             </table>
         </div>
-    </div>
-</div>
-
-<div id="nonConsumableAmountModal" class="modal">
-    <div class="modal-content">
-        <h3 style="color:#007bff;">💰 Non-Consumable Item Value</h3>
-        <p style="font-size:13px; color:#666;">Enter the unit value (₱) of this item. This determines whether it's filed under the Inventory Custodian Slip (₱49,999.99 and below) or the Property Acknowledgement Receipt (₱50,000.00 and above).</p>
-        <input type="number" id="nonConsumableAmount" min="0" step="0.01" placeholder="e.g., 4500.00">
-        <button id="submitNonConsumableBtn" style="width: 100%;" onclick="submitNonConsumableAmount()">Save Item</button>
-        <br><br><button style="background:#6c757d; width: 100%;" onclick="cancelPendingItemRegistration()">Cancel</button>
     </div>
 </div>
 
