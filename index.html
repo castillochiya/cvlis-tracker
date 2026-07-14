@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CVLIS Inventory Tracker</title>
@@ -274,8 +276,7 @@ let editingOldEmpId = "";
 // Camera tracking state configurations
 let availableCameras = [];
 let currentCamIndex = 0;
-let currentStream = null; // Track the active video stream
-let iosToggleCount = 0;   // Used to flip facingMode on iOS
+let currentStream = null; 
 
 // Detect if user is on an iOS device (iPhone/iPad)
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -283,8 +284,8 @@ const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 // Initialize the Instascan Object
 let scanner = new Instascan.Scanner({ 
     video: document.getElementById('preview'), 
-    scanPeriod: 1,  // Reduced from 5 to 1. This forces the engine to scan 5x faster!
-    refractoryPeriod: 2000 // Prevents accidental duplicate scans for 2 seconds
+    scanPeriod: 1,  
+    refractoryPeriod: 2000 
 });
 
 scanner.addListener('scan', function (content) {
@@ -304,55 +305,103 @@ function stopActiveStreams() {
     }
 }
 
+// Camera initialization system optimized to target the main back-facing sensor
+function initCameraSystem() {
+    updateBadgeDisplay("🔄 Locating main camera...", "#f39c12");
+    
+    Instascan.Camera.getCameras().then(function (cameras) {
+        if (cameras.length > 0) {
+            // Filter list to prioritize standard camera profiles
+            const standardCameras = cameras.filter(cam => {
+                const label = cam.name.toLowerCase();
+                // Exclude front-facing, wide, ultra-wide, or zoom lenses
+                return !label.includes('front') && 
+                       !label.includes('selfie') && 
+                       !label.includes('wide') && 
+                       !label.includes('ultra') && 
+                       !label.includes('zoom') && 
+                       !label.includes('tele');
+            });
+
+            // Use filtered standard list if possible; fallback to all available back cameras
+            const filteredList = standardCameras.length > 0 ? standardCameras : cameras.filter(cam => !cam.name.toLowerCase().includes('front'));
+            availableCameras = filteredList.length > 0 ? filteredList : cameras;
+            
+            // Choose the first match from our standard camera list
+            currentCamIndex = 0; 
+            startSelectedCamera();
+        } else {
+            updateBadgeDisplay("❌ No cameras detected.", "#dc3545");
+            console.error('No cameras found on this device.');
+        }
+    }).catch(function (e) {
+        updateBadgeDisplay("❌ Camera block access denied.", "#dc3545");
+        console.error(e);
+    });
+}
+
 function startSelectedCamera() {
+    stopActiveStreams();
     const videoElement = document.getElementById('preview');
     let constraints;
 
     if (isIOS) {
-        // iOS Constraints: Toggle between environments manually
+        // Safe standard rear camera routing for iOS using basic facingMode constraint
         constraints = {
             video: {
-                facingMode: iosToggleCount % 2 === 0 ? { exact: "environment" } : "user"
+                facingMode: { exact: "environment" }
             },
             audio: false
         };
     } else {
-        // Android Constraints: target specific camera array index ID
+        // Android/Desktop: Target selected primary camera hardware ID
         let targetCamera = availableCameras[currentCamIndex];
         constraints = {
-            video: targetCamera ? { deviceId: { exact: targetCamera.id } } : { facingMode: "environment" },
+            video: targetCamera ? { 
+                deviceId: { exact: targetCamera.id },
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            } : { facingMode: "environment" },
             audio: false
         };
     }
 
-    // Modern WebRTC activation
+    // Modern WebRTC activation with fallback handler
     navigator.mediaDevices.getUserMedia(constraints)
         .then(function(stream) {
             currentStream = stream;
             videoElement.srcObject = stream;
-            videoElement.setAttribute("playsinline", true); // Fix iOS Safari full-screen video lockup
+            videoElement.setAttribute("playsinline", true); 
             videoElement.play();
             
-            // Hand control off to scanner engine
-            if (isIOS) {
-                return scanner.start(); // Generic start for iOS
-            } else {
-                return scanner.start(availableCameras[currentCamIndex]);
-            }
+            // Hand control off to Instascan
+            return scanner.start(availableCameras[currentCamIndex]);
         })
         .then(() => {
             updateBadgeDisplay("🟢 Camera Active: Scan an Item", "#28a745");
         })
         .catch(err => {
-            console.warn("Advanced stream routing failed, executing fallback initialization...", err);
-            
-            
+            console.warn("Standard stream constraints failed. Executing basic environment fallback...", err);
+            // Re-attempting via generic fallback
+            const fallbackConstraints = { video: { facingMode: "environment" }, audio: false };
+            navigator.mediaDevices.getUserMedia(fallbackConstraints)
+                .then(function(fallbackStream) {
+                    currentStream = fallbackStream;
+                    videoElement.srcObject = fallbackStream;
+                    videoElement.play();
+                    return scanner.start();
+                })
+                .then(() => {
+                    updateBadgeDisplay("🟢 Camera Active (Fallback)", "#28a745");
+                })
+                .catch(error => {
+                    updateBadgeDisplay("❌ Camera Initialisation Failed", "#dc3545");
+                    console.error("Camera access failed completely:", error);
+                });
         });
 }
 
-
-
-// Start the modernized camera hardware cycle
+// Call camera activation sequence
 initCameraSystem();
 
 function switchTab(targetTab) {
