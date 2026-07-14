@@ -276,9 +276,9 @@ let editingOldEmpId = "";
 // --- ALL PREVIOUS CORNERSTONE VARIABLES (inventory, employees, logs) REMAIN THE SAME ---
 
 let currentStream = null;
-let currentFacingMode = "environment"; // Defaults to the rear camera system
+let currentCamIndex = 0;
 
-// Modern standard declaration for Instascan (No automated hardware callouts)
+// Standard declaration for Instascan
 let scanner = new Instascan.Scanner({ 
     video: document.getElementById('preview'), 
     scanPeriod: 1,  
@@ -294,13 +294,16 @@ scanner.addListener('scan', function (content) {
     handleItemScan(cleanCode);
 });
 
-// Clean hardware drop sequence
+// Clean hardware shutdown sequence
 function killHardwareStreams() {
-    try { scanner.stop(); } catch(e){}
+    try { 
+        scanner.stop(); 
+    } catch(e) {
+        console.log("Scanner stop ignored or already stopped.");
+    }
     if (currentStream) {
         currentStream.getTracks().forEach(track => {
             track.stop();
-            console.log("Released track:", track.label);
         });
         currentStream = null;
     }
@@ -310,82 +313,90 @@ function killHardwareStreams() {
     }
 }
 
-// BULLETPROOF ENGINE: Native Browser API handles the hardware initialization directly
-// BULLETPROOF ENGINE: Native Browser API handles the hardware initialization directly
+// THE CURE: Use real Instascan camera objects but filter out wide/ultra-wide/front sensors strictly
 function bootNativeCamera() {
-    updateBadgeDisplay("🔄 Connecting to sensor...", "#f39c12");
+    updateBadgeDisplay("🔄 Scanning camera sensors...", "#f39c12");
     killHardwareStreams();
 
-    const modernConstraints = {
-        video: {
-            facingMode: currentFacingMode,
-            width: { ideal: 640 }, // Lower resolution target to guarantee low-end mobile initialization
-            height: { ideal: 480 }
-        },
-        audio: false
-    };
+    Instascan.Camera.getCameras().then(function (cameras) {
+        if (cameras.length > 0) {
+            console.log("Detected cameras:", cameras);
+            
+            // Filter to find the standard/normal rear camera
+            const standardRearCameras = cameras.filter(cam => {
+                const name = cam.name.toLowerCase();
+                // Exclude known front, wide, ultra-wide, telephoto, and virtual cameras
+                return !name.includes('front') && 
+                       !name.includes('selfie') && 
+                       !name.includes('wide') && 
+                       !name.includes('ultra') && 
+                       !name.includes('zoom') && 
+                       !name.includes('tele') &&
+                       !name.includes('virtual');
+            });
 
-    navigator.mediaDevices.getUserMedia(modernConstraints)
-        .then(function(stream) {
-            currentStream = stream;
-            const videoElement = document.getElementById('preview');
-            
-            // Mount stream directly to the video tag
-            videoElement.srcObject = stream;
-            videoElement.setAttribute("playsinline", true);
-            videoElement.muted = true;
-            
-            videoElement.onloadedmetadata = function() {
-                videoElement.play()
-                    .then(() => {
-                        // FIX: We pass a dummy camera object to stop Instascan from executing its own getUserMedia pipeline
-                        scanner.start({ id: "native-stream" })
-                            .then(() => {
-                                let label = (currentFacingMode === "environment") ? "Back Camera" : "Front Camera";
-                                updateBadgeDisplay(`🟢 Connected: ${label}`, "#28a745");
-                            })
-                            .catch(err => {
-                                // If Instascan rejects the dummy object, pass nothing but keep the video element playing
-                                scanner.start();
-                                updateBadgeDisplay("🟢 Scanner Active", "#28a745");
-                            });
-                    });
-            };
-        })
-        .catch(function(err) {
-            console.error("Native Media Hardware Error:", err);
-            updateBadgeDisplay("❌ Camera Blocked (Check HTTPS/Permissions)", "#dc3545");
-        });
+            // Fallback chain: Standard Rear -> Any Rear -> First Available Camera
+            if (standardRearCameras.length > 0) {
+                availableCameras = standardRearCameras;
+            } else {
+                const generalRearCameras = cameras.filter(cam => !cam.name.toLowerCase().includes('front'));
+                availableCameras = generalRearCameras.length > 0 ? generalRearCameras : cameras;
+            }
+
+            // Keep the selected index within bounds
+            if (currentCamIndex >= availableCameras.length) {
+                currentCamIndex = 0;
+            }
+
+            const selectedCamera = availableCameras[currentCamIndex];
+            updateBadgeDisplay(`🔄 Starting: ${selectedCamera.name || "Rear Camera"}...`, "#f39c12");
+
+            // Start scanner using the ACTUAL Instascan Camera object (prevents black screen crash)
+            scanner.start(selectedCamera)
+                .then(() => {
+                    // Grab the active stream from the video tag to track it for clean shutdowns
+                    const videoElement = document.getElementById('preview');
+                    if (videoElement && videoElement.srcObject) {
+                        currentStream = videoElement.srcObject;
+                    }
+                    updateBadgeDisplay(`🟢 Active: ${selectedCamera.name || "Main Camera"}`, "#28a745");
+                })
+                .catch(err => {
+                    console.error("Instascan failed to start selected camera:", err);
+                    // Fallback to basic start if explicit selection fails
+                    scanner.start()
+                        .then(() => {
+                            updateBadgeDisplay("🟢 Active (Auto-selected Camera)", "#28a745");
+                        })
+                        .catch(fallbackErr => {
+                            updateBadgeDisplay("❌ Camera Initialization Failed", "#dc3545");
+                        });
+                });
+
+        } else {
+            updateBadgeDisplay("❌ No cameras found on this device.", "#dc3545");
+        }
+    }).catch(function (e) {
+        console.error("Camera detection error:", e);
+        updateBadgeDisplay("❌ Camera Access Blocked", "#dc3545");
+    });
 }
 
-function fallbackToGenericStream() {
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        .then(function(stream) {
-            currentStream = stream;
-            const videoElement = document.getElementById('preview');
-            videoElement.srcObject = stream;
-            videoElement.setAttribute("playsinline", true);
-            videoElement.play();
-            return scanner.start();
-        })
-        .then(() => {
-            updateBadgeDisplay("🟢 Connected (Generic Fallback)", "#28a745");
-        })
-        .catch(function(e) {
-            updateBadgeDisplay("❌ All Hardware Routing Failed", "#dc3545");
-        });
-}
-
-// Clean toggle handler bound to your interface button
+// Cycle button handler: cleanly steps through compatible standard cameras
 function cycleCamera() {
-    currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+    if (availableCameras.length <= 1) {
+        updateBadgeDisplay("🔄 Only 1 back camera found. Reloading...", "#f39c12");
+        bootNativeCamera();
+        return;
+    }
+    currentCamIndex = (currentCamIndex + 1) % availableCameras.length;
     bootNativeCamera();
 }
 
-// Window lifecycle drop-hook guard
+// Ensure hardware releases if user closes tab
 window.addEventListener('beforeunload', killHardwareStreams);
 
-// Kickstart system instantly using native WebRTC constraints
+// Kickstart system
 bootNativeCamera();
 
 // --- KEEP ALL RENDER TABLES AND INVENTORY MODAL SUBMIT FUNCTIONS BELOW THIS LINE ---
