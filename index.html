@@ -1,9 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CVLIS Inventory Tracker</title>
@@ -108,7 +105,7 @@
                     <option value="set">set</option>
                     <option value="unit">unit</option>
                     <option value="pack">pack</option>
-                    <option value="kg">ream</option>
+                    <option value="kg">kg</option>
                 </select>
                 <button type="button" style="padding: 8px 15px; margin: 0;" onclick="createNewItemType()">Register Item</button>
             </div>
@@ -116,13 +113,13 @@
 
         <div class="dashboard-grid">
             <div class="scanner-section">
-    <h3>📷 Live QR Feed</h3>
-    <div id="videoContainer">
-        <video id="preview" autoplay playsinline muted></video>
-    </div>
-
-    
-</div>
+                <h3>📷 Live QR Feed</h3>
+                <div id="videoContainer">
+                    <video id="preview" autoplay playsinline muted></video>
+                </div>
+                <button id="switchCamBtn" style="background: #34495e; font-size: 12px; padding: 6px 12px; margin-top: 10px;" onclick="cycleCameras()">🔄 Switch Camera Lens</button>
+                <div id="scannerStatus" class="status-badge">🔄 Initializing...</div>
+            </div>
 
             <div>
                 <h3>📋 Current Stock Levels</h3>
@@ -140,48 +137,26 @@
     </div>
 
     <div id="tab-employees" class="tab-content">
-    
-    <!-- Move the entire panel here -->
-    <div class="employee-control-panel" style="margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
-        <h4>👥 Add Single Employee</h4>
-        <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
-            <input type="text" id="newEmpId" placeholder="Employee ID (e.g., EMP04)" style="padding: 8px; flex: 1; min-width: 150px;">
-            <input type="text" id="newEmpName" placeholder="Full Name" style="padding: 8px; flex: 1; min-width: 150px;">
-            <button type="button" onclick="createNewEmployee()" style="padding: 8px 15px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 0;">Add Employee</button>
+        <div class="management-box">
+            <h4 style="margin: 0; color: #28a745;">➕ Add New Personnel / Receiver</h4>
+            <p style="margin: 2px 0 10px 0; font-size: 12px; color: #666;">Register a new employee badge ID code into the system authority registry.</p>
+            <div class="inline-form">
+                <input type="text" id="newEmpId" placeholder="Employee Number" style="text-transform: uppercase;">
+                <input type="text" id="newEmpName" placeholder="EMPLOYEE NAME">
+                <button type="button" style="padding: 8px 15px; margin: 0; background-color: #28a745;" onclick="createNewEmployee()">Register Employee</button>
+            </div>
         </div>
 
-        <hr style="border: 0; border-top: 1px solid #ccc; margin: 15px 0;">
-
-        <h4>📂 Bulk Import Employees (Excel / CSV)</h4>
-        <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
-            Upload an Excel or CSV file. The file <strong>must</strong> contain these exact column headers: <br>
-            <code style="background: #e9ecef; padding: 2px 6px; border-radius: 4px;">EMPLOYEE NUMBER</code>, 
-            <code style="background: #e9ecef; padding: 2px 6px; border-radius: 4px;">EMPLOYEE NAME</code>, and 
-            <code style="background: #e9ecef; padding: 2px 6px; border-radius: 4px;">POSITION</code>.
-        </p>
-        
-        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <input type="file" id="employeeExcelFile" accept=".xlsx, .xls, .csv" style="padding: 5px;">
-            <button type="button" onclick="importEmployeeExcel()" style="padding: 8px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 0;">📤 Upload & Import</button>
+        <h3>👥 Registered Personnel Registry</h3>
+        <div class="table-container" style="height: 350px;">
+            <table>
+                <thead>
+                    <tr><th>Employee ID</th><th>Full Name</th><th>Authorization Access</th><th style="width: 110px; text-align: center;">Actions</th></tr>
+                </thead>
+                <tbody id="employeesTable"></tbody>
+            </table>
         </div>
-    </div> <!-- End of Employee Control Panel -->
-
-    <h3>👥 Registered Personnel Registry</h3>
-    <div class="table-container" style="height: 350px;">
-        <table>
-            <thead>
-                <tr>
-                    <th>EMPLOYEE ID</th>
-                    <th>EMPLOYEE NAME</th>
-                    <th>POSITION</th> 
-                    <th>STATUS</th>
-                    <th style="width: 70px; text-align: center;">ACTION</th>
-                </tr>
-            </thead>
-            <tbody id="employeesTable"></tbody>
-        </table>
     </div>
-</div>
 
     <div id="tab-report" class="tab-content">
         <div class="report-header">
@@ -281,9 +256,9 @@ const defaultInventory = {
 };
 
 const defaultEmployees = {
-    "EMP01": { name: "Juan Dela Cruz", position: "Warehouse Supervisor" },
-    "EMP02": { name: "Maria Santos", position: "Inventory Clerk" },
-    "EMP03": { name: "Alex King", position: "Logistics Specialist" }
+    "EMP01": "Juan Dela Cruz",
+    "EMP02": "Maria Santos",
+    "EMP03": "Alex King"
 };
 
 // Global system states
@@ -296,17 +271,17 @@ let pendingReleaseQty = 0;
 let activeEmployeeId = "";
 let editingOldEmpId = ""; 
 
-// --- ALL PREVIOUS CORNERSTONE VARIABLES (inventory, employees, logs) REMAIN THE SAME ---
+// Camera tracking state configurations
+let availableCameras = [];
+let currentCamIndex = 0;
+let currentStream = null; // Track the active video stream
+let iosToggleCount = 0;   // Used to flip facingMode on iOS
 
-let currentStream = null;
-let currentFacingMode = "environment"; // Defaults to the rear camera system
+// Detect if user is on an iOS device (iPhone/iPad)
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-// Modern standard declaration for Instascan (No automated hardware callouts)
-let scanner = new Instascan.Scanner({ 
-    video: document.getElementById('preview'), 
-    scanPeriod: 1,  
-    refractoryPeriod: 2000 
-});
+// Initialize the Instascan Object
+let scanner = new Instascan.Scanner({ scanPeriod: 5 });
 
 scanner.addListener('scan', function (content) {
     let cleanCode = content.trim().toUpperCase();
@@ -317,101 +292,139 @@ scanner.addListener('scan', function (content) {
     handleItemScan(cleanCode);
 });
 
-// Clean hardware drop sequence
-function killHardwareStreams() {
-    try { scanner.stop(); } catch(e){}
+// Clean up and stop hardware streams
+function stopActiveStreams() {
     if (currentStream) {
-        currentStream.getTracks().forEach(track => {
-            track.stop();
-            console.log("Released track:", track.label);
-        });
+        currentStream.getTracks().forEach(track => track.stop());
         currentStream = null;
     }
-    const videoElement = document.getElementById('preview');
-    if (videoElement) {
-        videoElement.srcObject = null;
+}
+
+// Master camera boot loader
+function initCameraSystem() {
+    updateBadgeDisplay("🔄 Initializing System Cameras...", "#007bff");
+    stopActiveStreams();
+
+    if (isIOS) {
+        // iOS bypass: Apple doesn't expose camera IDs properly. Use facingMode constraints directly.
+        startSelectedCamera();
+    } else {
+        // Android/Desktop: Fetch actual hardware lists
+        Instascan.Camera.getCameras().then(function (cameras) {
+            if (cameras.length > 0) {
+                availableCameras = cameras;
+                
+                // Smart search for the primary back lens
+                let targetIndex = 0; 
+                let backCamKeywords = ['back', 'rear', 'environment', 'main', 'camera 1', 'facing back', '0'];
+                
+                for (let i = 0; i < cameras.length; i++) {
+                    let label = cameras[i].name ? cameras[i].name.toLowerCase() : '';
+                    if (backCamKeywords.some(keyword => label.includes(keyword))) {
+                        targetIndex = i;
+                        break;
+                    }
+                }
+                
+                // Fallback: the primary rear camera is often listed last on multi-camera Androids
+                if (targetIndex === 0 && cameras.length > 1) {
+                    targetIndex = cameras.length - 1;
+                }
+                
+                currentCamIndex = targetIndex;
+                startSelectedCamera();
+            } else {
+                updateBadgeDisplay("🔴 Camera not found.", "#dc3545");
+            }
+        }).catch(function(e) {
+            console.error(e);
+            updateBadgeDisplay("🔴 Permissions Blocked / Require HTTPS", "#dc3545");
+        });
     }
 }
 
-// BULLETPROOF ENGINE: Native Browser API handles the hardware initialization directly
-// BULLETPROOF ENGINE: Native Browser API handles the hardware initialization directly
-function bootNativeCamera() {
-    updateBadgeDisplay("🔄 Connecting to sensor...", "#f39c12");
-    killHardwareStreams();
+function startSelectedCamera() {
+    const videoElement = document.getElementById('preview');
+    let constraints;
 
-    const modernConstraints = {
-        video: {
-            facingMode: currentFacingMode,
-            width: { ideal: 640 }, // Lower resolution target to guarantee low-end mobile initialization
-            height: { ideal: 480 }
-        },
-        audio: false
-    };
+    if (isIOS) {
+        // iOS Constraints: Toggle between environments manually
+        constraints = {
+            video: {
+                facingMode: iosToggleCount % 2 === 0 ? { exact: "environment" } : "user"
+            },
+            audio: false
+        };
+    } else {
+        // Android Constraints: target specific camera array index ID
+        let targetCamera = availableCameras[currentCamIndex];
+        constraints = {
+            video: targetCamera ? { deviceId: { exact: targetCamera.id } } : { facingMode: "environment" },
+            audio: false
+        };
+    }
 
-    navigator.mediaDevices.getUserMedia(modernConstraints)
+    // Modern WebRTC activation
+    navigator.mediaDevices.getUserMedia(constraints)
         .then(function(stream) {
             currentStream = stream;
-            const videoElement = document.getElementById('preview');
-            
-            // Mount stream directly to the video tag
             videoElement.srcObject = stream;
-            videoElement.setAttribute("playsinline", true);
-            videoElement.muted = true;
-            
-            videoElement.onloadedmetadata = function() {
-                videoElement.play()
-                    .then(() => {
-                        // FIX: We pass a dummy camera object to stop Instascan from executing its own getUserMedia pipeline
-                        scanner.start({ id: "native-stream" })
-                            .then(() => {
-                                let label = (currentFacingMode === "environment") ? "Back Camera" : "Front Camera";
-                                updateBadgeDisplay(`🟢 Connected: ${label}`, "#28a745");
-                            })
-                            .catch(err => {
-                                // If Instascan rejects the dummy object, pass nothing but keep the video element playing
-                                scanner.start();
-                                updateBadgeDisplay("🟢 Scanner Active", "#28a745");
-                            });
-                    });
-            };
-        })
-        .catch(function(err) {
-            console.error("Native Media Hardware Error:", err);
-            updateBadgeDisplay("❌ Camera Blocked (Check HTTPS/Permissions)", "#dc3545");
-        });
-}
-
-function fallbackToGenericStream() {
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        .then(function(stream) {
-            currentStream = stream;
-            const videoElement = document.getElementById('preview');
-            videoElement.srcObject = stream;
-            videoElement.setAttribute("playsinline", true);
+            videoElement.setAttribute("playsinline", true); // Fix iOS Safari full-screen video lockup
             videoElement.play();
-            return scanner.start();
+            
+            // Hand control off to scanner engine
+            if (isIOS) {
+                return scanner.start(); // Generic start for iOS
+            } else {
+                return scanner.start(availableCameras[currentCamIndex]);
+            }
         })
         .then(() => {
-            updateBadgeDisplay("🟢 Connected (Generic Fallback)", "#28a745");
+            updateBadgeDisplay("🟢 Camera Active: Scan an Item", "#28a745");
         })
-        .catch(function(e) {
-            updateBadgeDisplay("❌ All Hardware Routing Failed", "#dc3545");
+        .catch(err => {
+            console.warn("Advanced stream routing failed, executing fallback initialization...", err);
+            
+            // Fallback for older devices/browsers that don't support custom constraints
+            if (availableCameras.length > 0) {
+                scanner.start(availableCameras[currentCamIndex]).then(() => {
+                    updateBadgeDisplay("🟢 Camera Active (Fallback)", "#28a745");
+                }).catch(e => {
+                    updateBadgeDisplay("🔴 Stream Busy/Error", "#dc3545");
+                });
+            } else {
+                updateBadgeDisplay("🔴 Setup Failed", "#dc3545");
+            }
         });
 }
 
-// Clean toggle handler bound to your interface button
-function cycleCamera() {
-    currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
-    bootNativeCamera();
+function cycleCameras() {
+    updateBadgeDisplay("🔄 Switching Lens...", "#34495e");
+
+    if (isIOS) {
+        // Toggle the iOS helper variable
+        iosToggleCount++;
+        scanner.stop().then(() => {
+            stopActiveStreams();
+            startSelectedCamera();
+        });
+    } else {
+        // Android: standard array index loop
+        if (availableCameras.length <= 1) {
+            updateBadgeDisplay("🟡 Single Camera Detected", "#f39c12");
+            return;
+        }
+        currentCamIndex = (currentCamIndex + 1) % availableCameras.length;
+        
+        scanner.stop().then(() => {
+            stopActiveStreams();
+            startSelectedCamera();
+        });
+    }
 }
 
-// Window lifecycle drop-hook guard
-window.addEventListener('beforeunload', killHardwareStreams);
-
-// Kickstart system instantly using native WebRTC constraints
-bootNativeCamera();
-
-// --- KEEP ALL RENDER TABLES AND INVENTORY MODAL SUBMIT FUNCTIONS BELOW THIS LINE ---
+// Start the modernized camera hardware cycle
+initCameraSystem();
 
 function switchTab(targetTab) {
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
@@ -480,127 +493,6 @@ function deleteItem(itemId) {
 }
 
 // --- PERSONNEL MANAGEMENT ENGINES ---
-// --- PERSONNEL BULK IMPORT ENGINE ---
-function importEmployeeExcel() {
-    const fileInput = document.getElementById('employeeExcelFile');
-    const file = fileInput.files[0];
-
-    if (!file) {
-        showSystemNotification("Selection Empty", "Please choose an Excel (.xlsx/.xls) or CSV file first.", false);
-        return;
-    }
-
-    if (typeof XLSX === "undefined") {
-        showSystemNotification(
-            "Library Missing", 
-            "The Excel processing library failed to load. Please check your internet connection.", 
-            false
-        );
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
-            const rawRows = XLSX.utils.sheet_to_json(worksheet);
-
-            if (!rawRows || rawRows.length === 0) {
-                showSystemNotification("File Empty", "The uploaded sheet contains no readable rows.", false);
-                return;
-            }
-
-            // Normalization check for headers
-            const firstRow = rawRows[0];
-            let keyEmpNum = "";
-            let keyEmpName = "";
-            let keyPosition = "";
-
-            const sanitizeHeader = (str) => String(str).toLowerCase().replace(/[^a-z0-9]/g, '');
-
-            for (let key in firstRow) {
-                const cleanKey = sanitizeHeader(key);
-                if (cleanKey === "employeenumber") keyEmpNum = key;
-                if (cleanKey === "employeename") keyEmpName = key;
-                if (cleanKey === "position") keyPosition = key;
-            }
-
-            // Strictly require at least the Name column to match
-            if (!keyEmpName) {
-                showSystemNotification(
-                    "Header Error", 
-                    "Could not find the 'EMPLOYEE NAME' column. Please check your spreadsheet headers.", 
-                    false
-                );
-                return;
-            }
-
-            let importCount = 0;
-            let duplicateCount = 0;
-            let generatedIdCounter = 1;
-
-            rawRows.forEach((row, index) => {
-                const rawId = row[keyEmpNum];
-                const rawName = row[keyEmpName];
-                const rawPos = keyPosition ? row[keyPosition] : "";
-
-                let empName = rawName ? String(rawName).trim() : "";
-                let empPos = rawPos ? String(rawPos).trim() : "Staff";
-                let empId = rawId ? String(rawId).trim().toUpperCase() : "";
-
-                // CORE FEATURE: If name exists but ID is empty, auto-generate a unique ID
-                if (empName && !empId) {
-                    // Generate an ID like "TEMP001" and increment until we find a free key
-                    let candidateId = `TEMP${String(generatedIdCounter).padStart(3, '0')}`;
-                    while (employees[candidateId]) {
-                        generatedIdCounter++;
-                        candidateId = `TEMP${String(generatedIdCounter).padStart(3, '0')}`;
-                    }
-                    empId = candidateId;
-                    generatedIdCounter++;
-                }
-
-                // If we have both a name and a resolved ID, save it
-                if (empId && empName) {
-                    if (employees[empId]) {
-                        duplicateCount++;
-                    }
-                    employees[empId] = {
-                        name: empName,
-                        position: empPos
-                    };
-                    importCount++;
-                } else {
-                    console.warn(`Row ${index + 2} skipped: Name column was completely empty.`);
-                }
-            });
-
-            saveAndRefresh();
-            fileInput.value = ""; // Clear file input selection
-            
-            showSystemNotification(
-                "Import Success", 
-                `Successfully processed ${importCount} employees! (${duplicateCount} existing database records were updated).`
-            );
-
-        } catch (error) {
-            console.error("Excel processing crash detail:", error);
-            showSystemNotification(
-                "Processing Failed", 
-                `An error occurred while parsing the spreadsheet: ${error.message}`, 
-                false
-            );
-        }
-    };
-
-    reader.readAsArrayBuffer(file);
-}
-
-// Update Single Employee Creation function to support default position
 function createNewEmployee() {
     let idInput = document.getElementById("newEmpId");
     let nameInput = document.getElementById("newEmpName");
@@ -612,107 +504,99 @@ function createNewEmployee() {
         return;
     }
     if (employees[empId]) {
-        showSystemNotification("ID Conflict", `Employee ID "${empId}" already exists in the database.`, false);
+        showSystemNotification("ID Conflict", `Employee ID "${empId}" already exists in the system database.`, false);
         return;
     }
     
-    // Saves with standard default position
-    employees[empId] = { name: empName, position: "General Staff" };
+    employees[empId] = empName;
     saveAndRefresh();
     idInput.value = "";
     nameInput.value = "";
     showSystemNotification("Personnel Added", `Employee profile "${empId}" registered successfully.`);
 }
 
-// Update Table Rendering specifically for Employee Columns
-function renderTables() {
-    // 1. RENDER INVENTORY TABLE
-    const invBody = document.getElementById("inventoryTable");
-    if (invBody) {
-        invBody.innerHTML = "";
-        for (let id in inventory) {
-            let currentUnit = inventory[id].unit || "pcs";
-            invBody.innerHTML += `<tr>
-                <td><strong>${id}</strong></td>
-                <td>${inventory[id].name} <span class="unit-label">${currentUnit}</span></td>
-                <td>${inventory[id].quantity}</td>
-                <td style="text-align:center;">
-                    <button class="danger action-btn" onclick="deleteItem('${id}')" title="Delete product item type">🗑️</button>
-                </td>
-            </tr>`;
-        }
+function editEmployee(oldEmpId) {
+    editingOldEmpId = oldEmpId;
+    document.getElementById("editEmpIdInput").value = oldEmpId;
+    document.getElementById("editEmpNameInput").value = employees[oldEmpId];
+    openModal("editEmployeeModal");
+}
+
+function submitEmployeeEdit() {
+    let newEmpId = document.getElementById("editEmpIdInput").value.trim().toUpperCase();
+    let newName = document.getElementById("editEmpNameInput").value.trim();
+    
+    if (!newEmpId || !newName) {
+        showSystemNotification("Blank Fields", "Employee configurations cannot save empty fields.", false);
+        return;
     }
-
-    // 2. RENDER EMPLOYEES TABLE (FIXED ALIGNMENT)
-    const empBody = document.getElementById("employeesTable");
-    if (empBody) {
-        empBody.innerHTML = "";
-        
-        for (let empId in employees) {
-            let empData = employees[empId];
-            let empName = "";
-            let empPosition = "Staff";
-
-            // Safety Check: Normalize legacy string format ("Maria Santos") to Object format ({name: "Maria Santos", position: "Staff"})
-            if (typeof empData === "object" && empData !== null) {
-                empName = empData.name || "Unknown Name";
-                empPosition = empData.position || "Staff";
-            } else if (typeof empData === "string") {
-                empName = empData; // Use the legacy string directly
-            }
-
-            // Ensure column cells exactly match: ID | NAME | POSITION | STATUS | ACTIONS
-            empBody.innerHTML += `<tr>
-                <td><strong>${empId}</strong></td>
-                <td>${empName}</td>
-                <td><em style="color:#555;">${empPosition}</em></td>
-                <td><span style="color:#28a745; font-weight:bold;">✔ Verified Active</span></td>
-                <td style="text-align:center;">
-                    <button class="danger action-btn" onclick="deleteEmployee('${empId}')" title="Remove Employee">🗑️</button>
-                </td>
-            </tr>`;
-        }
+    if (newEmpId !== editingOldEmpId && employees[newEmpId]) {
+        showSystemNotification("Collision Alert", `The target Employee ID "${newEmpId}" is already taken.`, false);
+        return;
     }
+    
+    if (newEmpId !== editingOldEmpId) {
+        delete employees[editingOldEmpId];
+    }
+    employees[newEmpId] = newName;
+    
+    saveAndRefresh();
+    showSystemNotification("Update Success", "Profile records re-mapped and updated successfully.");
+}
 
-    // 3. RENDER LOG TABLE
-    const logBody = document.getElementById("logTable");
-    if (logBody) {
-        logBody.innerHTML = "";
-        if (transactionLogs.length === 0) {
-            logBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#999;">No transaction logs recorded yet.</td></tr>`;
-        } else {
-            transactionLogs.forEach(log => {
-                let actionClass = "log-add";
-                if (log.action === "RELEASE" || log.action === "DELETE") actionClass = "log-release";
-                
-                logBody.innerHTML += `<tr>
-                    <td>${log.timestamp}</td>
-                    <td><strong>${log.itemId}</strong></td>
-                    <td class="${actionClass}">${log.action}</td>
-                    <td>${log.qty}</td>
-                    <td>${log.employee}</td>
-                    <td>${log.authorizedDate}</td>
-                </tr>`;
-            });
-        }
+function deleteEmployee(empId) {
+    if (confirm(`⚠️ Remove employee "${employees[empId]}" (${empId})?`)) {
+        delete employees[empId];
+        saveAndRefresh();
     }
 }
 
-// Update the Employee Dropdown generator in your Release Sign-out Modal
+// --- TRANSACTION LIFECYCLE ---
+function handleItemScan(id) {
+    if (!inventory[id]) {
+        showSystemNotification("Scan Rejected", `Item profile code "${id}" not found inside inventory listings.`, false);
+        return;
+    }
+    activeItemId = id;
+    document.getElementById("modalItemTitle").innerText = `Detected: ${inventory[id].name}`;
+    openModal("optionsModal");
+}
+
+function handleReleaseVerification() {
+    if (inventory[activeItemId].quantity <= 0) {
+        showSystemNotification("Release Rejected", `Transaction Denied: "${inventory[activeItemId].name}" is out of stock (Quantity is 0).`, false);
+    } else {
+        openModal("releaseModal");
+    }
+}
+
+function openAddModal() { openModal("addModal"); }
+
+function submitAdd() {
+    let qty = parseInt(document.getElementById("addQty").value);
+    if(qty > 0) {
+        inventory[activeItemId].quantity += qty;
+        logTransaction(activeItemId, "ADD", qty, "N/A", new Date().toLocaleDateString());
+        saveAndRefresh();
+        showSystemNotification("Restock Success", `Successfully inbound-logged +${qty} units to inventory.`);
+    }
+}
+
 function openEmployeeSelectionModal() {
     let qty = parseInt(document.getElementById("releaseQty").value);
     if (qty > inventory[activeItemId].quantity) {
-        showSystemNotification("Allocation Error", `Requested allocation (${qty}) exceeds current stock capacity.`, false);
+        showSystemNotification("Allocation Error", `Requested allocation (${qty}) exceeds current stock capacity (${inventory[activeItemId].quantity}).`, false);
         return;
     }
     
     pendingReleaseQty = qty;
+    
+    // Build Employee Dropdown options dynamically from registered records
     const dropdown = document.getElementById("employeeDropdown");
     dropdown.innerHTML = '<option value="" disabled selected>-- Choose an Employee --</option>';
     
     for (let empId in employees) {
-        let empObj = typeof employees[empId] === "object" ? employees[empId] : { name: employees[empId], position: "Staff" };
-        dropdown.innerHTML += `<option value="${empId}">${empObj.name} (${empObj.position})</option>`;
+        dropdown.innerHTML += `<option value="${empId}">${employees[empId]} (${empId})</option>`;
     }
     
     document.getElementById("releaseDate").valueAsDate = new Date();
@@ -720,18 +604,28 @@ function openEmployeeSelectionModal() {
     openModal("employeeModal");
 }
 
+function handleEmployeeSelect() {
+    let dropdown = document.getElementById("employeeDropdown");
+    let submitBtn = document.getElementById("finalReleaseBtn");
+    
+    if (dropdown.value) {
+        activeEmployeeId = dropdown.value;
+        submitBtn.disabled = false;
+    } else {
+        submitBtn.disabled = true;
+    }
+}
+
 function submitRelease() {
     inventory[activeItemId].quantity -= pendingReleaseQty;
     let authDate = document.getElementById("releaseDate").value;
     
-    let empObj = typeof employees[activeEmployeeId] === "object" ? employees[activeEmployeeId] : { name: employees[activeEmployeeId] };
-    
-    logTransaction(activeItemId, "RELEASE", pendingReleaseQty, empObj.name, authDate);
+    logTransaction(activeItemId, "RELEASE", pendingReleaseQty, employees[activeEmployeeId], authDate);
     saveAndRefresh();
     
     showSystemNotification(
         "Release Dispatched", 
-        `Successfully signed out ${pendingReleaseQty} ${inventory[activeItemId].unit}(s) to ${empObj.name}.`
+        `Successfully signed out ${pendingReleaseQty} ${inventory[activeItemId].unit}(s) of "${inventory[activeItemId].name}" to ${employees[activeEmployeeId]}.`
     );
 }
 
@@ -837,9 +731,6 @@ function updateBadgeDisplay(text, color) {
     badge.innerText = text;
     badge.style.background = color;
 }
-
-// Global window event: ensure hardware is fully freed up if user abruptly closes/refreshes window
-window.addEventListener('beforeunload', stopActiveStreams);
 
 function openModal(id) {
     document.querySelectorAll('.modal').forEach(m => m.style.display = "none");
