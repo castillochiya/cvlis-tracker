@@ -108,7 +108,7 @@
                     <option value="set">set</option>
                     <option value="unit">unit</option>
                     <option value="pack">pack</option>
-                    <option value="kg">kg</option>
+                    <option value="kg">ream</option>
                 </select>
                 <button type="button" style="padding: 8px 15px; margin: 0;" onclick="createNewItemType()">Register Item</button>
             </div>
@@ -160,7 +160,20 @@
     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
         <input type="file" id="employeeExcelFile" accept=".xlsx, .xls, .csv" style="padding: 5px;">
         <button type="button" onclick="importEmployeeExcel()" style="padding: 8px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">📤 Upload & Import</button>
+    <table>
+    <thead>
+        <tr>
+            <th>Employee ID</th>
+            <th>Name</th>
+            <th>Position</th> <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody id="employeesTable">
+        </tbody>
+</table>
     </div>
+
 </div>
 
     <div id="tab-report" class="tab-content">
@@ -261,9 +274,9 @@ const defaultInventory = {
 };
 
 const defaultEmployees = {
-    "EMP01": "Juan Dela Cruz",
-    "EMP02": "Maria Santos",
-    "EMP03": "Alex King"
+    "EMP01": { name: "Juan Dela Cruz", position: "Warehouse Supervisor" },
+    "EMP02": { name: "Maria Santos", position: "Inventory Clerk" },
+    "EMP03": { name: "Alex King", position: "Logistics Specialist" }
 };
 
 // Global system states
@@ -460,6 +473,96 @@ function deleteItem(itemId) {
 }
 
 // --- PERSONNEL MANAGEMENT ENGINES ---
+// --- PERSONNEL BULK IMPORT ENGINE ---
+function importEmployeeExcel() {
+    const fileInput = document.getElementById('employeeExcelFile');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        showSystemNotification("Selection Empty", "Please choose an Excel (.xlsx/.xls) or CSV file first.", false);
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // Access the first sheet in the Excel book
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            // Parse raw worksheet entries to JSON format
+            const rawRows = XLSX.utils.sheet_to_json(worksheet);
+
+            if (rawRows.length === 0) {
+                showSystemNotification("File Empty", "The uploaded sheet contains no data rows.", false);
+                return;
+            }
+
+            // Normalization check: Let's search for our exact required columns (case-insensitive & trimmed space checks)
+            const firstRow = rawRows[0];
+            let keyEmpNum = "";
+            let keyEmpName = "";
+            let keyPosition = "";
+
+            for (let key in firstRow) {
+                const cleanKey = key.trim().toUpperCase();
+                if (cleanKey === "EMPLOYEE NUMBER") keyEmpNum = key;
+                if (cleanKey === "EMPLOYEE NAME") keyEmpName = key;
+                if (cleanKey === "POSITION") keyPosition = key;
+            }
+
+            if (!keyEmpNum || !keyEmpName || !keyPosition) {
+                showSystemNotification(
+                    "Header Mismatch", 
+                    "Could not find exact columns: 'EMPLOYEE NUMBER', 'EMPLOYEE NAME', and 'POSITION'. Check spelling.", 
+                    false
+                );
+                return;
+            }
+
+            // Process rows
+            let importCount = 0;
+            let duplicateCount = 0;
+
+            rawRows.forEach(row => {
+                const empId = String(row[keyEmpNum] || "").trim().toUpperCase();
+                const empName = String(row[keyEmpName] || "").trim();
+                const empPos = String(row[keyPosition] || "").trim();
+
+                if (empId && empName) {
+                    // Save to global employee tracking object
+                    if (employees[empId]) {
+                        duplicateCount++; // Tracking duplicates to skip or overwrite
+                    }
+                    employees[empId] = {
+                        name: empName,
+                        position: empPos || "Unassigned"
+                    };
+                    importCount++;
+                }
+            });
+
+            saveAndRefresh();
+            fileInput.value = ""; // clear input
+            
+            showSystemNotification(
+                "Import Complete", 
+                `Successfully processed ${importCount} employee profiles (${duplicateCount} existing records updated).`
+            );
+
+        } catch (error) {
+            console.error("Excel processing crash:", error);
+            showSystemNotification("Processing Error", "Failed to parse file. Make sure it isn't corrupted.", false);
+        }
+    };
+
+    reader.readAsArrayBuffer(file);
+}
+
+// Update Single Employee Creation function to support default position
 function createNewEmployee() {
     let idInput = document.getElementById("newEmpId");
     let nameInput = document.getElementById("newEmpName");
@@ -471,98 +574,91 @@ function createNewEmployee() {
         return;
     }
     if (employees[empId]) {
-        showSystemNotification("ID Conflict", `Employee ID "${empId}" already exists in the system database.`, false);
+        showSystemNotification("ID Conflict", `Employee ID "${empId}" already exists in the database.`, false);
         return;
     }
     
-    employees[empId] = empName;
+    // Saves with standard default position
+    employees[empId] = { name: empName, position: "General Staff" };
     saveAndRefresh();
     idInput.value = "";
     nameInput.value = "";
     showSystemNotification("Personnel Added", `Employee profile "${empId}" registered successfully.`);
 }
 
-function editEmployee(oldEmpId) {
-    editingOldEmpId = oldEmpId;
-    document.getElementById("editEmpIdInput").value = oldEmpId;
-    document.getElementById("editEmpNameInput").value = employees[oldEmpId];
-    openModal("editEmployeeModal");
-}
+// Update Table Rendering specifically for Employee Columns
+function renderTables() {
+    // [Inventory and Log rendering sections remain exactly the same]
+    const invBody = document.getElementById("inventoryTable");
+    invBody.innerHTML = "";
+    for (let id in inventory) {
+        let currentUnit = inventory[id].unit || "pcs";
+        invBody.innerHTML += `<tr>
+            <td><strong>${id}</strong></td>
+            <td>${inventory[id].name} <span class="unit-label">${currentUnit}</span></td>
+            <td>${inventory[id].quantity}</td>
+            <td style="text-align:center;">
+                <button class="danger action-btn" onclick="deleteItem('${id}')" title="Delete product item type">🗑️</button>
+            </td>
+        </tr>`;
+    }
 
-function submitEmployeeEdit() {
-    let newEmpId = document.getElementById("editEmpIdInput").value.trim().toUpperCase();
-    let newName = document.getElementById("editEmpNameInput").value.trim();
+    // UPDATED: Employee table renderer including POSITIONS
+    const empBody = document.getElementById("employeesTable");
+    empBody.innerHTML = "";
     
-    if (!newEmpId || !newName) {
-        showSystemNotification("Blank Fields", "Employee configurations cannot save empty fields.", false);
-        return;
+    // Add custom header column for Position inside your table HTML if you haven't already
+    for (let empId in employees) {
+        // Handle old string format if converting data structures
+        let empObj = typeof employees[empId] === "object" ? employees[empId] : { name: employees[empId], position: "Staff" };
+        
+        empBody.innerHTML += `<tr>
+            <td><strong>${empId}</strong></td>
+            <td>${empObj.name}</td>
+            <td><em style="color:#555;">${empObj.position}</em></td>
+            <td><span style="color:#28a745; font-weight:bold;">✔ Verified Active</span></td>
+            <td style="text-align:center;">
+                <button class="danger action-btn" onclick="deleteEmployee('${empId}')" title="Remove Employee Instance">🗑️</button>
+            </td>
+        </tr>`;
     }
-    if (newEmpId !== editingOldEmpId && employees[newEmpId]) {
-        showSystemNotification("Collision Alert", `The target Employee ID "${newEmpId}" is already taken.`, false);
-        return;
-    }
-    
-    if (newEmpId !== editingOldEmpId) {
-        delete employees[editingOldEmpId];
-    }
-    employees[newEmpId] = newName;
-    
-    saveAndRefresh();
-    showSystemNotification("Update Success", "Profile records re-mapped and updated successfully.");
-}
 
-function deleteEmployee(empId) {
-    if (confirm(`⚠️ Remove employee "${employees[empId]}" (${empId})?`)) {
-        delete employees[empId];
-        saveAndRefresh();
-    }
-}
-
-// --- TRANSACTION LIFECYCLE ---
-function handleItemScan(id) {
-    if (!inventory[id]) {
-        showSystemNotification("Scan Rejected", `Item profile code "${id}" not found inside inventory listings.`, false);
-        return;
-    }
-    activeItemId = id;
-    document.getElementById("modalItemTitle").innerText = `Detected: ${inventory[id].name}`;
-    openModal("optionsModal");
-}
-
-function handleReleaseVerification() {
-    if (inventory[activeItemId].quantity <= 0) {
-        showSystemNotification("Release Rejected", `Transaction Denied: "${inventory[activeItemId].name}" is out of stock (Quantity is 0).`, false);
+    const logBody = document.getElementById("logTable");
+    logBody.innerHTML = "";
+    if (transactionLogs.length === 0) {
+        logBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#999;">No transaction logs recorded yet.</td></tr>`;
     } else {
-        openModal("releaseModal");
+        transactionLogs.forEach(log => {
+            let actionClass = "log-add";
+            if (log.action === "RELEASE" || log.action === "DELETE") actionClass = "log-release";
+            
+            logBody.innerHTML += `<tr>
+                <td>${log.timestamp}</td>
+                <td><strong>${log.itemId}</strong></td>
+                <td class="${actionClass}">${log.action}</td>
+                <td>${log.qty}</td>
+                <td>${log.employee}</td>
+                <td>${log.authorizedDate}</td>
+            </tr>`;
+        });
     }
 }
 
-function openAddModal() { openModal("addModal"); }
-
-function submitAdd() {
-    let qty = parseInt(document.getElementById("addQty").value);
-    if(qty > 0) {
-        inventory[activeItemId].quantity += qty;
-        logTransaction(activeItemId, "ADD", qty, "N/A", new Date().toLocaleDateString());
-        saveAndRefresh();
-        showSystemNotification("Restock Success", `Successfully inbound-logged +${qty} units to inventory.`);
-    }
-}
-
+// Update the Employee Dropdown generator in your Release Sign-out Modal
 function openEmployeeSelectionModal() {
     let qty = parseInt(document.getElementById("releaseQty").value);
     if (qty > inventory[activeItemId].quantity) {
-        showSystemNotification("Allocation Error", `Requested allocation (${qty}) exceeds current stock capacity (${inventory[activeItemId].quantity}).`, false);
+        showSystemNotification("Allocation Error", `Requested allocation (${qty}) exceeds current stock capacity.`, false);
         return;
     }
     
     pendingReleaseQty = qty;
-    
     const dropdown = document.getElementById("employeeDropdown");
     dropdown.innerHTML = '<option value="" disabled selected>-- Choose an Employee --</option>';
     
     for (let empId in employees) {
-        dropdown.innerHTML += `<option value="${empId}">${employees[empId]} (${empId})</option>`;
+        let empObj = typeof employees[empId] === "object" ? employees[empId] : { name: employees[empId], position: "Staff" };
+        dropdown.innerHTML += `<option value="${empId}">${empObj.name} (${empObj.position})</option>`;
     }
     
     document.getElementById("releaseDate").valueAsDate = new Date();
@@ -570,28 +666,18 @@ function openEmployeeSelectionModal() {
     openModal("employeeModal");
 }
 
-function handleEmployeeSelect() {
-    let dropdown = document.getElementById("employeeDropdown");
-    let submitBtn = document.getElementById("finalReleaseBtn");
-    
-    if (dropdown.value) {
-        activeEmployeeId = dropdown.value;
-        submitBtn.disabled = false;
-    } else {
-        submitBtn.disabled = true;
-    }
-}
-
 function submitRelease() {
     inventory[activeItemId].quantity -= pendingReleaseQty;
     let authDate = document.getElementById("releaseDate").value;
     
-    logTransaction(activeItemId, "RELEASE", pendingReleaseQty, employees[activeEmployeeId], authDate);
+    let empObj = typeof employees[activeEmployeeId] === "object" ? employees[activeEmployeeId] : { name: employees[activeEmployeeId] };
+    
+    logTransaction(activeItemId, "RELEASE", pendingReleaseQty, empObj.name, authDate);
     saveAndRefresh();
     
     showSystemNotification(
         "Release Dispatched", 
-        `Successfully signed out ${pendingReleaseQty} ${inventory[activeItemId].unit}(s) of "${inventory[activeItemId].name}" to ${employees[activeEmployeeId]}.`
+        `Successfully signed out ${pendingReleaseQty} ${inventory[activeItemId].unit}(s) to ${empObj.name}.`
     );
 }
 
