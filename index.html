@@ -389,16 +389,7 @@ function startSelectedCamera() {
         .catch(err => {
             console.warn("Advanced stream routing failed, executing fallback initialization...", err);
             
-            // Fallback for older devices/browsers that don't support custom constraints
-            if (availableCameras.length > 0) {
-                scanner.start(availableCameras[currentCamIndex]).then(() => {
-                    updateBadgeDisplay("🟢 Camera Active (Fallback)", "#28a745");
-                }).catch(e => {
-                    updateBadgeDisplay("🔴 Stream Busy/Error", "#dc3545");
-                });
-            } else {
-                updateBadgeDisplay("🔴 Setup Failed", "#dc3545");
-            }
+            
         });
 }
 
