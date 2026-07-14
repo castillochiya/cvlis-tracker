@@ -304,48 +304,7 @@ function stopActiveStreams() {
     }
 }
 
-// Master camera boot loader
-function initCameraSystem() {
-    updateBadgeDisplay("🔄 Initializing System Cameras...", "#007bff");
-    stopActiveStreams();
 
-    if (isIOS) {
-        // iOS bypass: Apple doesn't expose camera IDs properly. Use facingMode constraints directly.
-        startSelectedCamera();
-    } else {
-        // Android/Desktop: Fetch actual hardware lists
-        Instascan.Camera.getCameras().then(function (cameras) {
-            if (cameras.length > 0) {
-                availableCameras = cameras;
-                
-                // Smart search for the primary back lens
-                let targetIndex = 0; 
-                let backCamKeywords = ['back', 'rear', 'environment', 'main', 'camera 1', 'facing back', '0'];
-                
-                for (let i = 0; i < cameras.length; i++) {
-                    let label = cameras[i].name ? cameras[i].name.toLowerCase() : '';
-                    if (backCamKeywords.some(keyword => label.includes(keyword))) {
-                        targetIndex = i;
-                        break;
-                    }
-                }
-                
-                // Fallback: the primary rear camera is often listed last on multi-camera Androids
-                if (targetIndex === 0 && cameras.length > 1) {
-                    targetIndex = cameras.length - 1;
-                }
-                
-                currentCamIndex = targetIndex;
-                startSelectedCamera();
-            } else {
-                updateBadgeDisplay("🔴 Camera not found.", "#dc3545");
-            }
-        }).catch(function(e) {
-            console.error(e);
-            updateBadgeDisplay("🔴 Permissions Blocked / Require HTTPS", "#dc3545");
-        });
-    }
-}
 
 function startSelectedCamera() {
     const videoElement = document.getElementById('preview');
