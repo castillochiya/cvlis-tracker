@@ -274,14 +274,12 @@ let pendingReleaseQty = 0;
 let activeEmployeeId = "";
 let editingOldEmpId = ""; 
 
-// Camera tracking state configurations
-let availableCameras = [];
-let currentCamIndex = 0;
-let currentStream = null; 
+// --- ALL PREVIOUS CORNERSTONE VARIABLES (inventory, employees, logs) REMAIN THE SAME ---
 
-const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+let currentStream = null;
+let currentFacingMode = "environment"; // Defaults to the rear camera system
 
-// Initialize the Instascan Object
+// Modern standard declaration for Instascan (No automated hardware callouts)
 let scanner = new Instascan.Scanner({ 
     video: document.getElementById('preview'), 
     scanPeriod: 1,  
@@ -297,15 +295,13 @@ scanner.addListener('scan', function (content) {
     handleItemScan(cleanCode);
 });
 
-// CRITICAL FIX: Aggressively stops hardware tracks to unblock hardware locks
-function stopActiveStreams() {
-    if (scanner) {
-        try { scanner.stop(); } catch(e) {}
-    }
+// Clean hardware drop sequence
+function killHardwareStreams() {
+    try { scanner.stop(); } catch(e){}
     if (currentStream) {
         currentStream.getTracks().forEach(track => {
             track.stop();
-            console.log("Hardware track released:", track.label);
+            console.log("Released track:", track.label);
         });
         currentStream = null;
     }
@@ -315,110 +311,92 @@ function stopActiveStreams() {
     }
 }
 
-function initCameraSystem() {
-    updateBadgeDisplay("🔄 Initializing system...", "#f39c12");
-    stopActiveStreams();
-    
-    Instascan.Camera.getCameras().then(function (cameras) {
-        if (cameras.length > 0) {
-            // Filter out front cameras, keep standard back sensors
-            const standardCameras = cameras.filter(cam => {
-                const label = cam.name.toLowerCase();
-                return !label.includes('front') && 
-                       !label.includes('selfie') && 
-                       !label.includes('wide') && 
-                       !label.includes('ultra') && 
-                       !label.includes('zoom') && 
-                       !label.includes('tele');
-            });
+// BULLETPROOF ENGINE: Native Browser API handles the hardware initialization directly
+function bootNativeCamera() {
+    updateBadgeDisplay("🔄 Connecting to sensor...", "#f39c12");
+    killHardwareStreams();
 
-            const filteredList = standardCameras.length > 0 ? standardCameras : cameras.filter(cam => !cam.name.toLowerCase().includes('front'));
-            availableCameras = filteredList.length > 0 ? filteredList : cameras;
-            
-            currentCamIndex = 0; 
-            startSelectedCamera();
-        } else {
-            updateBadgeDisplay("❌ No cameras detected.", "#dc3545");
-        }
-    }).catch(function (e) {
-        updateBadgeDisplay("❌ Permissions Denied/Blocked", "#dc3545");
-        console.error(e);
-    });
-}
+    // Standardized modern web constraints pipeline
+    const modernConstraints = {
+        video: {
+            facingMode: currentFacingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+        },
+        audio: false
+    };
 
-function startSelectedCamera() {
-    stopActiveStreams();
-    const videoElement = document.getElementById('preview');
-    let constraints;
-
-    if (isIOS) {
-        constraints = {
-            video: { facingMode: { exact: "environment" } },
-            audio: false
-        };
-    } else {
-        let targetCamera = availableCameras[currentCamIndex];
-        constraints = {
-            video: targetCamera ? { 
-                deviceId: { exact: targetCamera.id },
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            } : { facingMode: "environment" },
-            audio: false
-        };
-    }
-
-    navigator.mediaDevices.getUserMedia(constraints)
+    navigator.mediaDevices.getUserMedia(modernConstraints)
         .then(function(stream) {
             currentStream = stream;
+            const videoElement = document.getElementById('preview');
+            
+            // Map raw media stream directly into the HTML5 video container
             videoElement.srcObject = stream;
-            videoElement.setAttribute("playsinline", true); 
-            videoElement.play();
+            videoElement.setAttribute("playsinline", true);
+            videoElement.muted = true;
             
-            if (isIOS || !availableCameras[currentCamIndex]) {
-                return scanner.start();
+            // Wait for the video metadata to lock in before starting the scan decoder engine
+            videoElement.onloadedmetadata = function() {
+                videoElement.play()
+                    .then(() => {
+                        // Pass active preview layer to Instascan engine without tracking hardware variables
+                        scanner.start()
+                            .then(() => {
+                                let label = (currentFacingMode === "environment") ? "Back Camera" : "Front Camera";
+                                updateBadgeDisplay(`🟢 Connected: ${label}`, "#28a745");
+                            })
+                            .catch(err => {
+                                console.error("Instascan processing layer crash:", err);
+                                updateBadgeDisplay("❌ Scanner Engine Error", "#dc3545");
+                            });
+                    });
+            };
+        })
+        .catch(function(err) {
+            console.error("Native Media Hardware Error:", err);
+            
+            // Fallback: If "environment" fails (some custom ROMs/devices label lenses oddly), try basic unconstrained video
+            if (currentFacingMode === "environment") {
+                console.warn("Rear lens failed to hook. Attempting generic video standard fallback...");
+                fallbackToGenericStream();
             } else {
-                return scanner.start(availableCameras[currentCamIndex]);
+                updateBadgeDisplay("❌ Access Blocked or Lens Missing", "#dc3545");
             }
-        })
-        .then(() => {
-            let label = (availableCameras[currentCamIndex] && availableCameras[currentCamIndex].name) || "Rear Camera";
-            updateBadgeDisplay(`🟢 Active: ${label}`, "#28a745");
-        })
-        .catch(err => {
-            console.warn("Primary constraints rejected, using generic fallback...", err);
-            
-            const fallbackConstraints = { video: { facingMode: "environment" }, audio: false };
-            navigator.mediaDevices.getUserMedia(fallbackConstraints)
-                .then(function(fallbackStream) {
-                    currentStream = fallbackStream;
-                    videoElement.srcObject = fallbackStream;
-                    videoElement.play();
-                    return scanner.start();
-                })
-                .then(() => {
-                    updateBadgeDisplay("🟢 Camera Active (Fallback Mode)", "#28a745");
-                })
-                .catch(error => {
-                    updateBadgeDisplay("❌ Camera Stream Blocked", "#dc3545");
-                    console.error("Complete hardware failure:", error);
-                });
         });
 }
 
-// Manual cycle mechanism bound to the new button interface
-function cycleCamera() {
-    if (availableCameras.length <= 1) {
-        updateBadgeDisplay("🔄 Only 1 back camera found. Retrying...", "#f39c12");
-        initCameraSystem();
-        return;
-    }
-    currentCamIndex = (currentCamIndex + 1) % availableCameras.length;
-    startSelectedCamera();
+function fallbackToGenericStream() {
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(function(stream) {
+            currentStream = stream;
+            const videoElement = document.getElementById('preview');
+            videoElement.srcObject = stream;
+            videoElement.setAttribute("playsinline", true);
+            videoElement.play();
+            return scanner.start();
+        })
+        .then(() => {
+            updateBadgeDisplay("🟢 Connected (Generic Fallback)", "#28a745");
+        })
+        .catch(function(e) {
+            updateBadgeDisplay("❌ All Hardware Routing Failed", "#dc3545");
+        });
 }
 
-// Initialize on page boot
-initCameraSystem();
+// Clean toggle handler bound to your interface button
+function cycleCamera() {
+    currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+    bootNativeCamera();
+}
+
+// Window lifecycle drop-hook guard
+window.addEventListener('beforeunload', killHardwareStreams);
+
+// Kickstart system instantly using native WebRTC constraints
+bootNativeCamera();
+
+// --- KEEP ALL RENDER TABLES AND INVENTORY MODAL SUBMIT FUNCTIONS BELOW THIS LINE ---
 
 function switchTab(targetTab) {
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
