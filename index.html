@@ -483,11 +483,10 @@ function importEmployeeExcel() {
         return;
     }
 
-    // Ensure the XLSX library is loaded before continuing
     if (typeof XLSX === "undefined") {
         showSystemNotification(
             "Library Missing", 
-            "The Excel processing library failed to load. Please check your internet connection and verify the <script> tag is in the head of your file.", 
+            "The Excel processing library failed to load. Please check your internet connection.", 
             false
         );
         return;
@@ -501,8 +500,6 @@ function importEmployeeExcel() {
             
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
-            
-            // Convert sheet to json
             const rawRows = XLSX.utils.sheet_to_json(worksheet);
 
             if (!rawRows || rawRows.length === 0) {
@@ -510,13 +507,12 @@ function importEmployeeExcel() {
                 return;
             }
 
-            // Normalization check: Clean and identify matched header column keys
+            // Normalization check for headers
             const firstRow = rawRows[0];
             let keyEmpNum = "";
             let keyEmpName = "";
             let keyPosition = "";
 
-            // Helper to strip non-alphanumeric characters for flexible matching
             const sanitizeHeader = (str) => String(str).toLowerCase().replace(/[^a-z0-9]/g, '');
 
             for (let key in firstRow) {
@@ -526,16 +522,11 @@ function importEmployeeExcel() {
                 if (cleanKey === "position") keyPosition = key;
             }
 
-            // If we are missing columns, stop and tell the user exactly which ones failed
-            if (!keyEmpNum || !keyEmpName || !keyPosition) {
-                let missing = [];
-                if (!keyEmpNum) missing.push("'EMPLOYEE NUMBER'");
-                if (!keyEmpName) missing.push("'EMPLOYEE NAME'");
-                if (!keyPosition) missing.push("'POSITION'");
-                
+            // Strictly require at least the Name column to match
+            if (!keyEmpName) {
                 showSystemNotification(
                     "Header Error", 
-                    `The system could not identify these columns: ${missing.join(", ")}. Please make sure they exist on the first row of your sheet.`, 
+                    "Could not find the 'EMPLOYEE NAME' column. Please check your spreadsheet headers.", 
                     false
                 );
                 return;
@@ -543,17 +534,30 @@ function importEmployeeExcel() {
 
             let importCount = 0;
             let duplicateCount = 0;
+            let generatedIdCounter = 1;
 
             rawRows.forEach((row, index) => {
-                // Safeguard against missing or undefined cell values
                 const rawId = row[keyEmpNum];
                 const rawName = row[keyEmpName];
-                const rawPos = row[keyPosition];
+                const rawPos = keyPosition ? row[keyPosition] : "";
 
-                const empId = rawId ? String(rawId).trim().toUpperCase() : "";
-                const empName = rawName ? String(rawName).trim() : "";
-                const empPos = rawPos ? String(rawPos).trim() : "Staff";
+                let empName = rawName ? String(rawName).trim() : "";
+                let empPos = rawPos ? String(rawPos).trim() : "Staff";
+                let empId = rawId ? String(rawId).trim().toUpperCase() : "";
 
+                // CORE FEATURE: If name exists but ID is empty, auto-generate a unique ID
+                if (empName && !empId) {
+                    // Generate an ID like "TEMP001" and increment until we find a free key
+                    let candidateId = `TEMP${String(generatedIdCounter).padStart(3, '0')}`;
+                    while (employees[candidateId]) {
+                        generatedIdCounter++;
+                        candidateId = `TEMP${String(generatedIdCounter).padStart(3, '0')}`;
+                    }
+                    empId = candidateId;
+                    generatedIdCounter++;
+                }
+
+                // If we have both a name and a resolved ID, save it
                 if (empId && empName) {
                     if (employees[empId]) {
                         duplicateCount++;
@@ -564,16 +568,16 @@ function importEmployeeExcel() {
                     };
                     importCount++;
                 } else {
-                    console.warn(`Row ${index + 2} skipped due to missing ID or Name value.`);
+                    console.warn(`Row ${index + 2} skipped: Name column was completely empty.`);
                 }
             });
 
             saveAndRefresh();
-            fileInput.value = ""; // Clear file input
+            fileInput.value = ""; // Clear file input selection
             
             showSystemNotification(
                 "Import Success", 
-                `Successfully processed ${importCount} employee profiles! (${duplicateCount} existing database profiles were updated).`
+                `Successfully processed ${importCount} employees! (${duplicateCount} existing database records were updated).`
             );
 
         } catch (error) {
