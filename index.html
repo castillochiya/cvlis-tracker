@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CVLIS Inventory Tracker</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 15px; background-color: #f4f4f9; display: flex; justify-content: center; }
         .container { width: 100%; max-width: 950px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); box-sizing: border-box; }
@@ -158,7 +159,20 @@
             <div class="inline-form">
                 <input type="text" id="newEmpId" placeholder="Employee Number" style="text-transform: uppercase;">
                 <input type="text" id="newEmpName" placeholder="EMPLOYEE NAME">
+                <input type="text" id="newEmpPosition" placeholder="POSITION">
                 <button type="button" id="registerEmpBtn" style="padding: 8px 15px; margin: 0; background-color: #28a745;" onclick="createNewEmployee()">Register Employee</button>
+            </div>
+        </div>
+
+        <div class="management-box" style="border-color:#28a745;">
+            <h4 style="margin: 0; color: #28a745;">📤 Bulk Upload from Excel</h4>
+            <p style="margin: 2px 0 10px 0; font-size: 12px; color: #666;">
+                Upload an .xlsx/.xls/.csv file with column headers <strong>EMPLOYEE NUMBER</strong>, <strong>EMPLOYEE NAME</strong>, and <strong>POSITION</strong>.
+                Existing employee numbers will be updated; new ones will be added.
+            </p>
+            <div class="inline-form">
+                <input type="file" id="empExcelInput" accept=".xlsx,.xls,.csv" style="flex: 2; min-width: 200px; background:white; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                <button type="button" id="uploadEmpBtn" style="padding: 8px 15px; margin: 0; background-color: #28a745;" onclick="importEmployeesFromExcel()">Upload &amp; Import</button>
             </div>
         </div>
 
@@ -166,7 +180,7 @@
         <div class="table-container" style="height: 350px;">
             <table>
                 <thead>
-                    <tr><th>Employee ID</th><th>Full Name</th><th>Authorization Access</th><th style="width: 110px; text-align: center;">Actions</th></tr>
+                    <tr><th>EMPLOYEE NUMBER</th><th>EMPLOYEE NAME</th><th>POSITION</th><th style="width: 110px; text-align: center;">ACTIONS</th></tr>
                 </thead>
                 <tbody id="employeesTable"></tbody>
             </table>
@@ -246,6 +260,9 @@
         
         <label for="editEmpNameInput">Full Name:</label>
         <input type="text" id="editEmpNameInput">
+
+        <label for="editEmpPositionInput">Position:</label>
+        <input type="text" id="editEmpPositionInput">
         
         <br><br>
         <button id="saveEmpEditBtn" style="width: 100%; background-color: #28a745;" onclick="submitEmployeeEdit()">Save Changes</button>
@@ -272,9 +289,9 @@ const defaultInventoryItems = {
     "ITEM003": { name: "Dell 27-inch Monitor", unit: "unit", quantity: 5 }
 };
 const defaultEmployeeItems = {
-    "EMP01": "Juan Dela Cruz",
-    "EMP02": "Maria Santos",
-    "EMP03": "Alex King"
+    "EMP01": { name: "Juan Dela Cruz", position: "Warehouse Staff" },
+    "EMP02": { name: "Maria Santos", position: "Procurement Officer" },
+    "EMP03": { name: "Alex King", position: "IT Support" }
 };
 
 // Local in-memory mirrors of shared storage. Each has shape { rev, items }
@@ -325,6 +342,20 @@ async function loadOrSeed(key, defaultItems) {
     return seeded;
 }
 
+// Older versions of this tracker stored employees as { empId: "Name" }.
+// Upgrade any such records in place so the rest of the app can assume
+// { empId: { name, position } } everywhere.
+function normalizeEmployeeShape(empData) {
+    let changed = false;
+    for (let id in empData.items) {
+        if (typeof empData.items[id] === "string") {
+            empData.items[id] = { name: empData.items[id], position: "" };
+            changed = true;
+        }
+    }
+    return empData;
+}
+
 async function loadAllData() {
     const [inv, emp, logs] = await Promise.all([
         loadOrSeed(STORAGE_KEYS.inventory, defaultInventoryItems),
@@ -332,7 +363,7 @@ async function loadAllData() {
         loadOrSeed(STORAGE_KEYS.logs, [])
     ]);
     inventory = inv;
-    employees = emp;
+    employees = normalizeEmployeeShape(emp);
     transactionLogs = logs;
     dataReady = true;
     renderTables();
@@ -386,7 +417,7 @@ async function mutateShared(key, mutatorFn, maxRetries = 6) {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function refreshInventory() { const r = await safeGet(STORAGE_KEYS.inventory); if (r && r.value) try { inventory = JSON.parse(r.value); } catch(e){} }
-async function refreshEmployees() { const r = await safeGet(STORAGE_KEYS.employees); if (r && r.value) try { employees = JSON.parse(r.value); } catch(e){} }
+async function refreshEmployees() { const r = await safeGet(STORAGE_KEYS.employees); if (r && r.value) try { employees = normalizeEmployeeShape(JSON.parse(r.value)); } catch(e){} }
 async function refreshLogs() { const r = await safeGet(STORAGE_KEYS.logs); if (r && r.value) try { transactionLogs = JSON.parse(r.value); } catch(e){} }
 
 async function appendLog(itemId, action, qty, employeeLabel, authorizedDate) {
@@ -659,8 +690,10 @@ async function deleteItem(itemId) {
 async function createNewEmployee() {
     let idInput = document.getElementById("newEmpId");
     let nameInput = document.getElementById("newEmpName");
+    let positionInput = document.getElementById("newEmpPosition");
     let empId = idInput.value.trim().toUpperCase();
     let empName = nameInput.value.trim();
+    let empPosition = positionInput.value.trim();
 
     if (!empId || !empName) {
         showSystemNotification("Input Blank", "Please fill out both the Employee ID and Full Name fields.", false);
@@ -671,12 +704,12 @@ async function createNewEmployee() {
     try {
         await mutateShared(STORAGE_KEYS.employees, (latest) => {
             if (latest.items[empId]) throw new Error(`Employee ID "${empId}" already exists in the system database.`);
-            latest.items[empId] = empName;
+            latest.items[empId] = { name: empName, position: empPosition };
             return latest;
         });
         await refreshEmployees();
         renderTables();
-        idInput.value = ""; nameInput.value = "";
+        idInput.value = ""; nameInput.value = ""; positionInput.value = "";
         showSystemNotification("Personnel Added", `Employee profile "${empId}" registered successfully.`);
     } catch (e) {
         showSystemNotification("ID Conflict", e.message, false);
@@ -685,16 +718,116 @@ async function createNewEmployee() {
     }
 }
 
+// --- BULK IMPORT FROM EXCEL ---
+function normalizeHeaderKey(key) {
+    return String(key || "").trim().toUpperCase().replace(/\s+/g, " ");
+}
+
+async function importEmployeesFromExcel() {
+    const fileInput = document.getElementById("empExcelInput");
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) {
+        showSystemNotification("No File Selected", "Please choose an Excel (.xlsx/.xls) or CSV file first.", false);
+        return;
+    }
+    if (typeof XLSX === "undefined") {
+        showSystemNotification("Import Unavailable", "The Excel import library failed to load. Check your connection and try again.", false);
+        return;
+    }
+
+    setBtnBusy("uploadEmpBtn", true, "Importing…", "Upload & Import");
+    try {
+        const rows = await parseExcelFile(file);
+        if (rows.length === 0) {
+            showSystemNotification("Empty File", "No rows were found in the uploaded file.", false);
+            return;
+        }
+
+        // Build a lookup from normalized header -> actual key present in the row
+        const sampleRow = rows[0];
+        const headerMap = {};
+        Object.keys(sampleRow).forEach(k => { headerMap[normalizeHeaderKey(k)] = k; });
+
+        const numKey = headerMap["EMPLOYEE NUMBER"];
+        const nameKey = headerMap["EMPLOYEE NAME"];
+        const posKey = headerMap["POSITION"];
+
+        if (!numKey || !nameKey) {
+            showSystemNotification("Missing Columns", 'The file must include "EMPLOYEE NUMBER" and "EMPLOYEE NAME" columns.', false);
+            return;
+        }
+
+        const parsedEmployees = [];
+        let skipped = 0;
+        rows.forEach(row => {
+            const empId = String(row[numKey] || "").trim().toUpperCase();
+            const empName = String(row[nameKey] || "").trim();
+            const empPosition = posKey ? String(row[posKey] || "").trim() : "";
+            if (!empId || !empName) { skipped++; return; }
+            parsedEmployees.push({ empId, empName, empPosition });
+        });
+
+        if (parsedEmployees.length === 0) {
+            showSystemNotification("Nothing to Import", "No valid rows with both an Employee Number and Employee Name were found.", false);
+            return;
+        }
+
+        let addedCount = 0, updatedCount = 0;
+        await mutateShared(STORAGE_KEYS.employees, (latest) => {
+            addedCount = 0; updatedCount = 0; // reset in case of retry
+            parsedEmployees.forEach(({ empId, empName, empPosition }) => {
+                if (latest.items[empId]) updatedCount++; else addedCount++;
+                latest.items[empId] = { name: empName, position: empPosition };
+            });
+            return latest;
+        });
+
+        await refreshEmployees();
+        renderTables();
+        fileInput.value = "";
+        let summary = `Added ${addedCount}, updated ${updatedCount} employee record(s).`;
+        if (skipped > 0) summary += ` Skipped ${skipped} row(s) missing a number or name.`;
+        showSystemNotification("Import Complete", summary);
+    } catch (e) {
+        console.error(e);
+        showSystemNotification("Import Failed", e.message || "Could not read or import that file.", false);
+    } finally {
+        setBtnBusy("uploadEmpBtn", false, "", "Upload & Import");
+    }
+}
+
+function parseExcelFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("Could not read the selected file."));
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: "array" });
+                const firstSheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[firstSheetName];
+                const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+                resolve(json);
+            } catch (err) {
+                reject(new Error("That file doesn't look like a valid Excel/CSV file."));
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    });
+}
+
 function editEmployee(oldEmpId) {
     editingOldEmpId = oldEmpId;
     document.getElementById("editEmpIdInput").value = oldEmpId;
-    document.getElementById("editEmpNameInput").value = employees.items[oldEmpId];
+    document.getElementById("editEmpNameInput").value = employees.items[oldEmpId].name;
+    document.getElementById("editEmpPositionInput").value = employees.items[oldEmpId].position || "";
     openModal("editEmployeeModal");
 }
 
 async function submitEmployeeEdit() {
     let newEmpId = document.getElementById("editEmpIdInput").value.trim().toUpperCase();
     let newName = document.getElementById("editEmpNameInput").value.trim();
+    let newPosition = document.getElementById("editEmpPositionInput").value.trim();
 
     if (!newEmpId || !newName) {
         showSystemNotification("Blank Fields", "Employee configurations cannot save empty fields.", false);
@@ -709,7 +842,7 @@ async function submitEmployeeEdit() {
                 throw new Error(`The target Employee ID "${newEmpId}" is already taken.`);
             }
             if (newEmpId !== oldEmpId) delete latest.items[oldEmpId];
-            latest.items[newEmpId] = newName;
+            latest.items[newEmpId] = { name: newName, position: newPosition };
             return latest;
         });
         await refreshEmployees();
@@ -723,7 +856,7 @@ async function submitEmployeeEdit() {
 }
 
 async function deleteEmployee(empId) {
-    if (!confirm(`⚠️ Remove employee "${employees.items[empId]}" (${empId})?`)) return;
+    if (!confirm(`⚠️ Remove employee "${employees.items[empId].name}" (${empId})?`)) return;
     try {
         await mutateShared(STORAGE_KEYS.employees, (latest) => {
             delete latest.items[empId];
@@ -803,7 +936,7 @@ async function openEmployeeSelectionModal() {
     const dropdown = document.getElementById("employeeDropdown");
     dropdown.innerHTML = '<option value="" disabled selected>-- Choose an Employee --</option>';
     for (let empId in employees.items) {
-        dropdown.innerHTML += `<option value="${empId}">${employees.items[empId]} (${empId})</option>`;
+        dropdown.innerHTML += `<option value="${empId}">${employees.items[empId].name} (${empId})</option>`;
     }
 
     document.getElementById("releaseDate").valueAsDate = new Date();
@@ -828,7 +961,7 @@ async function submitRelease() {
     const itemId = activeItemId;
     const empId = activeEmployeeId;
     const authDate = document.getElementById("releaseDate").value;
-    const empLabel = employees.items[empId] || empId;
+    const empLabel = employees.items[empId] ? employees.items[empId].name : empId;
 
     setBtnBusy("finalReleaseBtn", true, "Processing…", "Confirm & Deduct Stock");
     try {
@@ -908,10 +1041,11 @@ function renderTables() {
     const empBody = document.getElementById("employeesTable");
     empBody.innerHTML = "";
     for (let empId in employees.items) {
+        const emp = employees.items[empId];
         empBody.innerHTML += `<tr>
             <td><strong>${empId}</strong></td>
-            <td>${employees.items[empId]}</td>
-            <td><span style="color:#28a745; font-weight:bold;">✔ Verified Active</span></td>
+            <td>${emp.name}</td>
+            <td>${emp.position || ""}</td>
             <td style="text-align:center;">
                 <button class="action-btn edit-btn" onclick="editEmployee('${empId}')" title="Edit Employee ID and Name">✏️</button>
                 <button class="danger action-btn" onclick="deleteEmployee('${empId}')" title="Remove Employee Instance">🗑️</button>
