@@ -601,11 +601,30 @@ function getSortedEmployeeEntries() {
 // instead of silently clobbering their change (or going negative).
 // ============================================================
 
+// Distinguishes "this key genuinely doesn't exist yet" (safe to treat as
+// empty) from a real fetch failure (network hiccup, backgrounded tab
+// reconnecting, Firebase momentarily unreachable, etc.) — the caller needs
+// to tell these apart, because treating a transient error as "empty" would
+// make mutateShared think a real, still-existing item had been deleted.
 async function safeGet(key) {
     try {
         return await window.storage.get(key, true);
     } catch (e) {
-        return null; // key doesn't exist yet, or a transient error
+        if (e && typeof e.message === "string" && e.message.startsWith("Key not found")) {
+            return null; // genuinely absent — fine to treat as empty
+        }
+        throw e; // a real error — let the caller decide (usually: retry)
+    }
+}
+
+// Same as safeGet, but for callers that only want a "did this succeed"
+// yes/no and are fine treating any failure (missing key OR fetch error) as
+// null — used by background refreshes where losing one sync cycle is safe.
+async function safeGetOrNull(key) {
+    try {
+        return await safeGet(key);
+    } catch (e) {
+        return null;
     }
 }
 
@@ -678,7 +697,17 @@ async function loadAllData() {
 // "insufficient stock").
 async function mutateShared(key, mutatorFn, maxRetries = 6) {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-        const res = await safeGet(key);
+        let res;
+        try {
+            res = await safeGet(key);
+        } catch (e) {
+            // A real fetch error (network hiccup, momentarily unreachable, etc.) —
+            // NOT the same as the key genuinely being empty. Retry instead of
+            // letting the mutator think the registry has nothing in it, which
+            // would wrongly report a real, still-existing item as deleted.
+            await sleep(150 + Math.random() * 200);
+            continue;
+        }
         let latest;
         try {
             latest = res && res.value ? JSON.parse(res.value) : { rev: 0, items: {} };
@@ -701,19 +730,19 @@ async function mutateShared(key, mutatorFn, maxRetries = 6) {
         }
 
         // Verify the write actually stuck (nobody raced us between set and now)
-        const verifyRes = await safeGet(key);
         let verified = null;
         try {
+            const verifyRes = await safeGet(key);
             verified = verifyRes && verifyRes.value ? JSON.parse(verifyRes.value) : null;
-        } catch (e) { /* ignore */ }
+        } catch (e) { /* verification fetch failed — fall through and retry below */ }
 
         if (verified && verified.rev === updated.rev) {
             return updated; // success, no race
         }
-        // Someone else wrote in the gap — retry from fresh data
+        // Someone else wrote in the gap, or verification failed — retry from fresh data
         await sleep(100 + Math.random() * 150);
     }
-    throw new Error("Too many people are updating this at once — please try again.");
+    throw new Error("Couldn't reach the database after several attempts — check your connection and try again.");
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -761,9 +790,9 @@ function normalizeUnitKey(rawUnit) {
     return legacyMap[rawUnit] || "pc";
 }
 
-async function refreshInventory() { const r = await safeGet(STORAGE_KEYS.inventory); if (r && r.value) try { inventory = normalizeInventoryShape(JSON.parse(r.value)); } catch(e){} }
-async function refreshEmployees() { const r = await safeGet(STORAGE_KEYS.employees); if (r && r.value) try { employees = normalizeEmployeeShape(JSON.parse(r.value)); } catch(e){} }
-async function refreshLogs() { const r = await safeGet(STORAGE_KEYS.logs); if (r && r.value) try { transactionLogs = JSON.parse(r.value); } catch(e){} }
+async function refreshInventory() { const r = await safeGetOrNull(STORAGE_KEYS.inventory); if (r && r.value) try { inventory = normalizeInventoryShape(JSON.parse(r.value)); } catch(e){} }
+async function refreshEmployees() { const r = await safeGetOrNull(STORAGE_KEYS.employees); if (r && r.value) try { employees = normalizeEmployeeShape(JSON.parse(r.value)); } catch(e){} }
+async function refreshLogs() { const r = await safeGetOrNull(STORAGE_KEYS.logs); if (r && r.value) try { transactionLogs = JSON.parse(r.value); } catch(e){} }
 
 async function appendLog(itemId, action, qty, employeeLabel, authorizedDate) {
     const timestamp = new Date().toLocaleTimeString();
