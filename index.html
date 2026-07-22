@@ -388,7 +388,6 @@
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
-  // Same contract as Claude.ai's window.storage: get/set/delete/list
   window.storage = {
     async get(key) {
       const snap = await fbGet(ref(db, "cvlis_kv/" + key));
@@ -520,18 +519,12 @@ const defaultEmployeeItems = {
     "EMP03": { name: "Alex King", position: "IT Support" }
 };
 
-// Local in-memory mirrors of shared storage. Each has shape { rev, items }
 let inventory = { rev: 0, items: {} };
 let employees = { rev: 0, items: {} };
 let transactionLogs = { rev: 0, items: [] };
 
 const STORAGE_KEYS = { inventory: "cvlis_inventory", employees: "cvlis_employees", logs: "cvlis_logs" };
 
-// `window.storage` is normally set by the Firebase module script above.
-// If that script failed to load (offline, blocked CDN, etc.) we fall back
-// to plain localStorage so the app still works — note this fallback is
-// per-browser only, so cross-device sync requires the Firebase script to
-// have loaded successfully.
 if (!window.storage) {
     console.warn("window.storage not found — falling back to localStorage (single browser only, no cross-device sync).");
     window.storage = {
@@ -571,7 +564,7 @@ let activeEmployeeId = "";
 let editingOldEmpId = "";
 let editingItemId = "";
 let dataReady = false;
-let employeeSortMode = "numAsc"; // numAsc | numDesc | nameAsc | nameDesc
+let employeeSortMode = "numAsc"; 
 
 function setEmployeeSort(mode) {
     employeeSortMode = mode;
@@ -579,7 +572,7 @@ function setEmployeeSort(mode) {
 }
 
 function getSortedEmployeeEntries() {
-    const entries = Object.entries(employees.items); // [ [empId, {name, position}], ... ]
+    const entries = Object.entries(employees.items); 
     const numCollator = (a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: "base" });
     const nameCollator = (a, b) => (a[1].name || "").localeCompare(b[1].name || "", undefined, { sensitivity: "base" });
 
@@ -594,32 +587,20 @@ function getSortedEmployeeEntries() {
 }
 
 // ============================================================
-// SHARED STORAGE LAYER
-// Every mutation re-fetches the freshest copy right before writing,
-// then re-reads after writing to confirm the write actually stuck.
-// If another device raced us in between, we retry with fresh data
-// instead of silently clobbering their change (or going negative).
+// SHARED STORAGE LAYER (FIXED)
 // ============================================================
 
-// Distinguishes "this key genuinely doesn't exist yet" (safe to treat as
-// empty) from a real fetch failure (network hiccup, backgrounded tab
-// reconnecting, Firebase momentarily unreachable, etc.) — the caller needs
-// to tell these apart, because treating a transient error as "empty" would
-// make mutateShared think a real, still-existing item had been deleted.
 async function safeGet(key) {
     try {
-        return await window.storage.get(key, true);
+        return await window.storage.get(key);
     } catch (e) {
-        if (e && typeof e.message === "string" && e.message.startsWith("Key not found")) {
-            return null; // genuinely absent — fine to treat as empty
+        if (e && typeof e.message === "string" && e.message.includes("Key not found")) {
+            return null; 
         }
-        throw e; // a real error — let the caller decide (usually: retry)
+        throw e; 
     }
 }
 
-// Same as safeGet, but for callers that only want a "did this succeed"
-// yes/no and are fine treating any failure (missing key OR fetch error) as
-// null — used by background refreshes where losing one sync cycle is safe.
 async function safeGetOrNull(key) {
     try {
         return await safeGet(key);
@@ -632,22 +613,19 @@ async function loadOrSeed(key, defaultItems) {
     const res = await safeGet(key);
     if (res && res.value) {
         try {
-            const parsed = JSON.parse(res.value);
+            const parsed = typeof res.value === 'string' ? JSON.parse(res.value) : res.value;
             if (parsed && typeof parsed === "object" && "items" in parsed) return parsed;
         } catch (e) { /* fall through and reseed */ }
     }
     const seeded = { rev: 0, items: defaultItems };
     try {
-        await window.storage.set(key, JSON.stringify(seeded), true);
+        await window.storage.set(key, JSON.stringify(seeded));
     } catch (e) {
         console.warn("Seed failed for", key, e);
     }
     return seeded;
 }
 
-// Older versions of this tracker stored employees as { empId: "Name" }.
-// Upgrade any such records in place so the rest of the app can assume
-// { empId: { name, position } } everywhere.
 function normalizeEmployeeShape(empData) {
     let changed = false;
     for (let id in empData.items) {
@@ -659,13 +637,6 @@ function normalizeEmployeeShape(empData) {
     return empData;
 }
 
-// Older versions of this tracker may not have a unit set on every record.
-// Default any such records to "pcs" so the table always has something to show.
-// Normalizes unit values to our current base unit keys (mapping legacy
-// values like "pcs"/"unit"/"set"), and backfills baselineQty for records
-// created before low-stock tracking existed — defaulting it to the item's
-// current quantity so such items simply aren't flagged until their next
-// real restock establishes a proper baseline.
 function normalizeInventoryShape(invData) {
     for (let id in invData.items) {
         const item = invData.items[id];
@@ -691,36 +662,37 @@ async function loadAllData() {
     setSyncStatus("ok", "Synced");
 }
 
-// Generic optimistic-concurrency writer. mutatorFn receives the freshest
-// { rev, items } object and should mutate + return it, or throw an
-// Error with a user-facing message to abort (e.g. "already exists",
-// "insufficient stock").
 async function mutateShared(key, mutatorFn, maxRetries = 6) {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         let res;
         try {
             res = await safeGet(key);
         } catch (e) {
-            // A real fetch error (network hiccup, momentarily unreachable, etc.) —
-            // NOT the same as the key genuinely being empty. Retry instead of
-            // letting the mutator think the registry has nothing in it, which
-            // would wrongly report a real, still-existing item as deleted.
             await sleep(150 + Math.random() * 200);
             continue;
         }
+        
         let latest;
         try {
-            latest = res && res.value ? JSON.parse(res.value) : { rev: 0, items: {} };
+            if (res && res.value) {
+                latest = typeof res.value === 'string' ? JSON.parse(res.value) : res.value;
+            } else {
+                // If the database has no record for this key, fall back to memory
+                if (key === STORAGE_KEYS.inventory) latest = inventory;
+                else if (key === STORAGE_KEYS.employees) latest = employees;
+                else if (key === STORAGE_KEYS.logs) latest = transactionLogs;
+                else latest = { rev: 0, items: {} };
+            }
         } catch (e) {
             latest = { rev: 0, items: {} };
         }
 
-        const updated = mutatorFn(latest); // may throw a validation error -> bubble up, no retry
+        const updated = mutatorFn(latest); 
         updated.rev = (latest.rev || 0) + 1;
 
         let setResult;
         try {
-            setResult = await window.storage.set(key, JSON.stringify(updated), true);
+            setResult = await window.storage.set(key, JSON.stringify(updated));
         } catch (e) {
             setResult = null;
         }
@@ -729,17 +701,17 @@ async function mutateShared(key, mutatorFn, maxRetries = 6) {
             continue;
         }
 
-        // Verify the write actually stuck (nobody raced us between set and now)
         let verified = null;
         try {
             const verifyRes = await safeGet(key);
-            verified = verifyRes && verifyRes.value ? JSON.parse(verifyRes.value) : null;
-        } catch (e) { /* verification fetch failed — fall through and retry below */ }
+            if (verifyRes && verifyRes.value) {
+                verified = typeof verifyRes.value === 'string' ? JSON.parse(verifyRes.value) : verifyRes.value;
+            }
+        } catch (e) { /* verification fetch failed */ }
 
         if (verified && verified.rev === updated.rev) {
-            return updated; // success, no race
+            return updated; 
         }
-        // Someone else wrote in the gap, or verification failed — retry from fresh data
         await sleep(100 + Math.random() * 150);
     }
     throw new Error("Couldn't reach the database after several attempts — check your connection and try again.");
@@ -747,9 +719,6 @@ async function mutateShared(key, mutatorFn, maxRetries = 6) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// Formats a Date object, or the yyyy-mm-dd string an <input type="date">
-// produces, as mm-dd-yyyy. Parsing the yyyy-mm-dd string manually (instead
-// of `new Date(str)`) avoids a timezone shift moving the date back a day.
 function formatDateMMDDYYYY(input) {
     let year, month, day;
     if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
@@ -763,9 +732,6 @@ function formatDateMMDDYYYY(input) {
     return `${month}-${day}-${year}`;
 }
 
-// Singular/plural forms for each supported base unit. The inventory item
-// (and each log entry) stores the base key (e.g. "pc"); the displayed label
-// is picked based on the quantity involved in that specific context.
 const UNIT_FORMS = {
     pc:     { singular: "pc",     plural: "pcs"     },
     pack:   { singular: "pack",   plural: "packs"   },
@@ -777,22 +743,19 @@ const UNIT_FORMS = {
 
 function formatUnit(baseUnit, quantity) {
     const forms = UNIT_FORMS[baseUnit];
-    if (!forms) return baseUnit || "pcs"; // unrecognized/legacy value we couldn't map, show as-is
+    if (!forms) return baseUnit || "pcs";
     return quantity === 1 ? forms.singular : forms.plural;
 }
 
-// Older records may have unit values from before this feature (e.g. "pcs",
-// "unit", "set") that aren't one of our base keys. Map those to the closest
-// base key so singular/plural formatting still works for them.
 function normalizeUnitKey(rawUnit) {
     if (UNIT_FORMS[rawUnit]) return rawUnit;
     const legacyMap = { pcs: "pc", unit: "pc", units: "pc", set: "pc", sets: "pc", packs: "pack", boxes: "box", pads: "pad", bottles: "bottle", reams: "ream" };
     return legacyMap[rawUnit] || "pc";
 }
 
-async function refreshInventory() { const r = await safeGetOrNull(STORAGE_KEYS.inventory); if (r && r.value) try { inventory = normalizeInventoryShape(JSON.parse(r.value)); } catch(e){} }
-async function refreshEmployees() { const r = await safeGetOrNull(STORAGE_KEYS.employees); if (r && r.value) try { employees = normalizeEmployeeShape(JSON.parse(r.value)); } catch(e){} }
-async function refreshLogs() { const r = await safeGetOrNull(STORAGE_KEYS.logs); if (r && r.value) try { transactionLogs = JSON.parse(r.value); } catch(e){} }
+async function refreshInventory() { const r = await safeGetOrNull(STORAGE_KEYS.inventory); if (r && r.value) try { inventory = normalizeInventoryShape(typeof r.value === 'string' ? JSON.parse(r.value) : r.value); } catch(e){} }
+async function refreshEmployees() { const r = await safeGetOrNull(STORAGE_KEYS.employees); if (r && r.value) try { employees = normalizeEmployeeShape(typeof r.value === 'string' ? JSON.parse(r.value) : r.value); } catch(e){} }
+async function refreshLogs() { const r = await safeGetOrNull(STORAGE_KEYS.logs); if (r && r.value) try { transactionLogs = typeof r.value === 'string' ? JSON.parse(r.value) : r.value; } catch(e){} }
 
 async function appendLog(itemId, action, qty, employeeLabel, authorizedDate) {
     const timestamp = new Date().toLocaleTimeString();
@@ -808,10 +771,8 @@ async function appendLog(itemId, action, qty, employeeLabel, authorizedDate) {
     }
 }
 
-// Background sync so every device converges on the same shared state
 function startPolling() {
     setInterval(async () => {
-        // Don't clobber an in-flight transaction's modal state; just refresh background data
         const anyModalOpen = document.querySelectorAll('.modal[style*="flex"]').length > 0;
         if (anyModalOpen) return;
         setSyncStatus("stale", "Syncing…");
@@ -834,14 +795,7 @@ function setSyncStatus(state, text) {
 }
 
 // ============================================================
-// QR SCANNING (jsQR — actively maintained, works via getUserMedia +
-// canvas frame sampling). Always requests the rear/environment-facing
-// camera — no lens-switching option, works uniformly on iOS and Android.
-// Camera only starts on an explicit "Start Camera" tap (not on page load):
-// getUserMedia requires a real user gesture in most embedded/sandboxed
-// contexts (like this artifact preview), so auto-starting it silently
-// failed. A manual code-entry fallback is also provided in case the
-// camera is genuinely unavailable (no permission, no HTTPS, no device).
+// QR SCANNING
 // ============================================================
 let videoElement, canvasElement, canvasCtx;
 let currentStream = null;
@@ -877,12 +831,6 @@ async function attachCameraStream(stream, badgeText) {
     videoElement.setAttribute("playsinline", true);
     await videoElement.play();
 
-    // The native camera app auto-focuses continuously and uses a full-res
-    // sensor feed; getUserMedia streams default to a lower resolution and a
-    // fixed focal point, which is why in-page scanning can miss codes that
-    // the phone's own scanner reads instantly. Nudge the track towards
-    // continuous autofocus where the browser supports it (best-effort —
-    // most desktop webcams and some phones don't expose this control).
     const [track] = stream.getVideoTracks();
     if (track && typeof track.getCapabilities === "function") {
         try {
@@ -891,7 +839,7 @@ async function attachCameraStream(stream, badgeText) {
             if (caps.focusMode && caps.focusMode.includes("continuous")) advanced.focusMode = "continuous";
             if (caps.exposureMode && caps.exposureMode.includes("continuous")) advanced.exposureMode = "continuous";
             if (Object.keys(advanced).length) await track.applyConstraints({ advanced: [advanced] });
-        } catch (e) { /* not supported on this device/browser, ignore */ }
+        } catch (e) { /* not supported */ }
     }
 
     scanning = true;
@@ -912,36 +860,24 @@ async function initCameraSystem() {
     updateBadgeDisplay("🔄 Requesting camera access...", "#007bff");
     stopActiveStreams();
 
-    // Request a higher-resolution feed than the browser default — jsQR
-    // needs enough pixels across the code to decode it, and the default
-    // getUserMedia resolution is often much lower than what the native
-    // camera app captures.
     const highRes = { width: { ideal: 1920 }, height: { ideal: 1080 } };
 
-    // Strictly require the rear/environment-facing lens first (works on iOS Safari and Android Chrome).
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" }, ...highRes }, audio: false });
         await attachCameraStream(stream, "🟢 Rear Camera Active: Scan an Item");
         return;
-    } catch (err) {
-        console.warn("Exact rear-camera constraint failed, trying relaxed constraint...", err);
-    }
+    } catch (err) {}
 
-    // Relaxed fallback: prefer environment-facing but allow the browser to pick the closest match
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", ...highRes }, audio: false });
         await attachCameraStream(stream, "🟢 Rear Camera Active (Fallback)");
         return;
-    } catch (err) {
-        console.warn("Relaxed rear-camera constraint failed, trying any camera...", err);
-    }
+    } catch (err) {}
 
-    // Last resort: devices with only one camera (e.g. some laptops/desktops) — no rear lens to prefer
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { ...highRes }, audio: false });
         await attachCameraStream(stream, "🟢 Camera Active (No Rear Lens Found)");
     } catch (err) {
-        console.error(err);
         let reason = "Camera unavailable";
         if (err && err.name === "NotAllowedError") reason = "Camera permission denied";
         else if (err && err.name === "NotFoundError") reason = "No camera found on this device";
@@ -975,9 +911,6 @@ function scanTick() {
         canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
         try {
             const imageData = canvasCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
-            // "attemptBoth" also tries an inverted read — some QR codes are
-            // printed light-on-dark, and native camera apps handle both
-            // automatically while "dontInvert" alone would miss them.
             const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
             if (code && code.data) {
                 const now = Date.now();
@@ -987,7 +920,7 @@ function scanTick() {
                     handleRawScan(code.data);
                 }
             }
-        } catch (e) { /* frame not ready yet, ignore */ }
+        } catch (e) {}
     }
     requestAnimationFrame(scanTick);
 }
@@ -1191,7 +1124,6 @@ async function importEmployeesFromExcel() {
             return;
         }
 
-        // Build a lookup from normalized header -> actual key present in the row
         const sampleRow = rows[0];
         const headerMap = {};
         Object.keys(sampleRow).forEach(k => { headerMap[normalizeHeaderKey(k)] = k; });
@@ -1222,7 +1154,7 @@ async function importEmployeesFromExcel() {
 
         let addedCount = 0, updatedCount = 0;
         await mutateShared(STORAGE_KEYS.employees, (latest) => {
-            addedCount = 0; updatedCount = 0; // reset in case of retry
+            addedCount = 0; updatedCount = 0; 
             parsedEmployees.forEach(({ empId, empName, empPosition }) => {
                 if (latest.items[empId]) updatedCount++; else addedCount++;
                 latest.items[empId] = { name: empName, position: empPosition };
@@ -1237,7 +1169,6 @@ async function importEmployeesFromExcel() {
         if (skipped > 0) summary += ` Skipped ${skipped} row(s) missing a number or name.`;
         showSystemNotification("Import Complete", summary);
     } catch (e) {
-        console.error(e);
         showSystemNotification("Import Failed", e.message || "Could not read or import that file.", false);
     } finally {
         setBtnBusy("uploadEmpBtn", false, "", "Upload & Import");
@@ -1351,7 +1282,6 @@ async function submitAdd() {
         await mutateShared(STORAGE_KEYS.inventory, (latest) => {
             if (!latest.items[itemId]) throw new Error("Item no longer exists in the registry.");
             latest.items[itemId].quantity += qty;
-            // This restock becomes the new reference point for low-stock detection
             latest.items[itemId].baselineQty = latest.items[itemId].quantity;
             return latest;
         });
@@ -1376,7 +1306,6 @@ async function openEmployeeSelectionModal() {
         return;
     }
 
-    // Re-sync before showing available quantity, so this check reflects reality
     await refreshInventory();
     if (!inventory.items[activeItemId]) {
         showSystemNotification("Item Missing", "This item no longer exists in the registry.", false);
@@ -1398,7 +1327,7 @@ async function openEmployeeSelectionModal() {
 
     const releaseDateInput = document.getElementById("releaseDate");
     releaseDateInput.valueAsDate = new Date();
-    const todayIso = releaseDateInput.value; // yyyy-mm-dd, already reflects local "today"
+    const todayIso = releaseDateInput.value; 
     releaseDateInput.min = todayIso;
     releaseDateInput.max = todayIso;
     document.getElementById("finalReleaseBtn").disabled = true;
@@ -1415,7 +1344,6 @@ function handleEmployeeSearchInput() {
     const resultsDiv = document.getElementById("employeeSearchResults");
     const submitBtn = document.getElementById("finalReleaseBtn");
 
-    // Typing again invalidates whatever was previously picked, until a match is clicked
     activeEmployeeId = "";
     submitBtn.disabled = true;
 
@@ -1487,7 +1415,7 @@ async function submitRelease() {
     }
 }
 
-// --- EXCEL (CSV) EXPORT UTILITY ---
+// --- EXCEL EXPORT UTILITY ---
 function exportToExcel() {
     if (transactionLogs.items.length === 0) {
         showSystemNotification("Export Warning", "There are no transaction records to export yet.", false);
@@ -1521,11 +1449,6 @@ function exportToExcel() {
     document.body.removeChild(link);
 }
 
-// The RIS slip only reflects items that have actually been released to
-// someone — one row per RELEASE log entry, newest first (logs are already
-// stored newest-first). Unit and Item Description are looked up from the
-// current inventory record; if the item was since deleted, we fall back to
-// the item ID so the row doesn't go blank.
 function renderRisTable() {
     const risBody = document.getElementById("risTable");
     risBody.innerHTML = "";
@@ -1552,10 +1475,6 @@ function renderRisTable() {
     if (!risBody.innerHTML) risBody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:#999;">No items released yet.</td></tr>`;
 }
 
-// Read-only log of every ADD event (new item registrations and restocks),
-// newest first. Like the RIS table, this is derived entirely from the
-// transaction log — there are no edit/delete controls on this table by
-// design, since it's meant to be an audit trail of incoming stock.
 function renderIncomingItemsTable() {
     const incomingBody = document.getElementById("incomingItemsTable");
     if (!incomingBody) return;
@@ -1581,10 +1500,6 @@ function renderIncomingItemsTable() {
 }
 
 // --- LOW STOCK WARNING ---
-// An item is "low" once its current quantity drops to 15% or below of
-// baselineQty — the stock level right after its most recent restock. Items
-// never restocked (baselineQty 0/undefined) are never flagged, since there's
-// no reference point yet.
 let lowStockListOpen = false;
 
 function isLowStock(item) {
@@ -1614,9 +1529,6 @@ function updateLowStockBanner() {
     banner.style.display = "block";
     countSpan.innerText = lowEntries.length;
 
-    // Rebuild the panel contents every render so items that get restocked
-    // back above 15% disappear from the list automatically, and the count
-    // stays accurate as long as anything remains below the threshold.
     panel.innerHTML = lowEntries.map(([id, item]) => {
         const unitLabel = formatUnit(item.unit, item.quantity);
         return `<div class="low-stock-item"><strong>${id}</strong> — ${item.name}: ${item.quantity} ${unitLabel} left (restocked to ${item.baselineQty} last time)</div>`;
