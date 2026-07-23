@@ -142,25 +142,41 @@
         </div>
 
         <div class="dashboard-grid">
-            <div class="scanner-section">
-                <h3>📷 Scan QR Code</h3>
-                <div id="videoContainer">
-                    <video id="preview" autoplay playsinline muted></video>
-                    <canvas id="qrCanvas" style="display:none;"></canvas>
+            <div class="scanner-section" id="actionSelectPanel">
+                <h3>📦 Inventory Actions</h3>
+                <p style="font-size:12px; color:#666; margin-bottom:10px;">Choose an action to begin.</p>
+                <button type="button" style="width:100%;" onclick="showRestockPanel()">📥 Restock</button>
+                <button type="button" class="danger" style="width:100%;" onclick="showReleasePanel()">📤 Release</button>
+            </div>
+
+            <div class="scanner-section" id="restockPanel" style="display:none;">
+                <h3>📥 Restock Item</h3>
+                <div id="restockScannerMount" style="width:100%; display:flex; flex-direction:column; align-items:center;"></div>
+                <p style="margin-top:10px;">Detected Item: <strong id="restockDetectedItem">None yet</strong></p>
+                <input type="number" id="restockQty" min="1" placeholder="Quantity" oninput="updateRestockProceedState()" style="width:95%; padding:10px; margin:8px 0; border:1px solid #ccc; border-radius:6px; text-align:center;">
+                <button id="restockProceedBtn" style="width:100%;" disabled onclick="submitRestock()">✅ Proceed</button>
+                <button type="button" style="width:100%; background:#6c757d;" onclick="cancelActionPanel()">Cancel</button>
+            </div>
+
+            <div class="scanner-section" id="releasePanel" style="display:none;">
+                <h3>📤 Release Item(s)</h3>
+                <div style="position:relative; width:100%;">
+                    <input type="text" id="employeeSearchInput" placeholder="Type employee name or ID..." autocomplete="off"
+                           oninput="handleEmployeeSearchInput()"
+                           onfocus="handleEmployeeSearchInput()"
+                           onblur="setTimeout(hideEmployeeSearchResults, 150)"
+                           style="width:95%; padding:10px; margin:8px 0; border:1px solid #ccc; border-radius:6px; text-align:center;">
+                    <div id="employeeSearchResults" class="employee-search-results"></div>
                 </div>
-                <div id="scannerStatus" class="status-badge">🔄 Tap Start Camera to scan</div>
-                <div>
-                    <button id="startScannerBtn" type="button" style="margin-top:10px;" onclick="initCameraSystem()">▶️ Start Camera</button>
-                    <button id="stopScannerBtn" type="button" style="margin-top:10px; background:#6c757d; display:none;" onclick="stopScanner()">⏹️ Stop Camera</button>
-                </div>
-                <p style="font-size:11px; color:#888; margin:8px 0 0 0;">Tip: hold steady, fill the frame with the code, and make sure it's well-lit for best in-page detection.</p>
-                <div style="margin-top:15px; width:100%; max-width:320px; text-align:left;">
-                    <p style="font-size:12px; color:#666; margin-bottom:6px; text-align:center;">Camera unavailable or not scanning? Enter the item code manually:</p>
-                    <div style="display:flex; gap:6px;">
-                        <input type="text" id="manualCodeInput" placeholder="e.g., ITEM001" style="flex:1; padding:8px; border:1px solid #ccc; border-radius:4px; text-transform:uppercase;" onkeydown="if(event.key==='Enter'){ event.preventDefault(); submitManualCode(); }">
-                        <button type="button" style="margin:0; padding:8px 14px;" onclick="submitManualCode()">Go</button>
-                    </div>
-                </div>
+                <div id="releaseScannerMount" style="width:100%; display:flex; flex-direction:column; align-items:center;"></div>
+                <p style="margin-top:10px;">Detected Item: <strong id="releaseDetectedItem">None yet</strong></p>
+                <input type="number" id="releaseItemQty" min="1" placeholder="Quantity" oninput="updateAddReleaseItemState()" style="width:95%; padding:10px; margin:8px 0; border:1px solid #ccc; border-radius:6px; text-align:center;">
+                <button id="addReleaseItemBtn" style="width:100%;" disabled onclick="addItemToReleaseQueue()">➕ Add Item</button>
+
+                <div id="releaseQueueList" style="width:100%; text-align:left; margin-top:10px;"></div>
+
+                <button id="releaseProceedBtn" class="danger" style="width:100%; margin-top:10px;" disabled onclick="proceedRelease()">✅ Proceed &amp; Deduct Stock</button>
+                <button type="button" style="width:100%; background:#6c757d;" onclick="cancelActionPanel()">Cancel</button>
             </div>
 
             <div>
@@ -182,6 +198,28 @@
             </div>
         </div>
     </div>
+
+<div id="scannerWidgetHolder" style="display:none;">
+    <div id="scannerWidget" style="display:flex; flex-direction:column; align-items:center; width:100%;">
+        <div id="videoContainer">
+            <video id="preview" autoplay playsinline muted></video>
+            <canvas id="qrCanvas" style="display:none;"></canvas>
+        </div>
+        <div id="scannerStatus" class="status-badge">🔄 Tap Start Camera to scan</div>
+        <div>
+            <button id="startScannerBtn" type="button" style="margin-top:10px;" onclick="initCameraSystem()">▶️ Start Camera</button>
+            <button id="stopScannerBtn" type="button" style="margin-top:10px; background:#6c757d; display:none;" onclick="stopScanner()">⏹️ Stop Camera</button>
+        </div>
+        <p style="font-size:11px; color:#888; margin:8px 0 0 0;">Tip: hold steady, fill the frame with the code, and make sure it's well-lit for best in-page detection.</p>
+        <div style="margin-top:15px; width:100%; max-width:320px; text-align:left;">
+            <p style="font-size:12px; color:#666; margin-bottom:6px; text-align:center;">Camera unavailable or not scanning? Enter the item code manually:</p>
+            <div style="display:flex; gap:6px;">
+                <input type="text" id="manualCodeInput" placeholder="e.g., ITEM001" style="flex:1; padding:8px; border:1px solid #ccc; border-radius:4px; text-transform:uppercase;" onkeydown="if(event.key==='Enter'){ event.preventDefault(); submitManualCode(); }">
+                <button type="button" style="margin:0; padding:8px 14px;" onclick="submitManualCode()">Go</button>
+            </div>
+        </div>
+    </div>
+</div>
 
     <div id="tab-employees" class="tab-content">
         <div class="management-box">
@@ -277,58 +315,6 @@
                 <tbody id="incomingItemsTable"></tbody>
             </table>
         </div>
-    </div>
-</div>
-
-<div id="optionsModal" class="modal">
-    <div class="modal-content">
-        <h3 id="modalItemTitle">Item Detected</h3>
-        <p>What would you like to do with this stock?</p>
-        <button onclick="openAddModal()">➕ Add Stock</button>
-        <button class="danger" onclick="handleReleaseVerification()">➖ Release Stock</button>
-        <br><br><button style="background:#6c757d; width: 100%;" onclick="closeModals()">Cancel Action</button>
-    </div>
-</div>
-
-<div id="addModal" class="modal">
-    <div class="modal-content">
-        <h3>How many to ADD?</h3>
-        <input type="number" id="addQty" min="1" value="1">
-        <button id="submitAddBtn" style="width: 100%;" onclick="submitAdd()">Submit to Inventory</button>
-        <br><br><button style="background:#6c757d; width: 100%;" onclick="closeModals()">Cancel</button>
-    </div>
-</div>
-
-<div id="releaseModal" class="modal">
-    <div class="modal-content">
-        <h3>How many to RELEASE?</h3>
-        <input type="number" id="releaseQty" min="1" value="1">
-        <button style="width: 100%;" onclick="openEmployeeSelectionModal()">Next: Verify Receiver</button>
-        <br><br><button style="background:#6c757d; width: 100%;" onclick="closeModals()">Cancel</button>
-    </div>
-</div>
-
-<div id="employeeModal" class="modal">
-    <div class="modal-content">
-        <h3>👤 Receiver Verification</h3>
-        <p style="color: #007bff; font-weight: bold; background: #e7f1ff; padding: 8px; border-radius: 4px; font-size: 13px; margin-bottom: 15px;">
-            👉 Select the receiving employee from the list below.
-        </p>
-        
-        <p style="margin-bottom: 5px; font-weight: bold; color: #555; text-align: left; padding-left: 10px;">Select Employee:</p>
-        <div style="position:relative;">
-            <input type="text" id="employeeSearchInput" placeholder="Type employee name or ID..." autocomplete="off"
-                   oninput="handleEmployeeSearchInput()"
-                   onfocus="handleEmployeeSearchInput()"
-                   onblur="setTimeout(hideEmployeeSearchResults, 150)">
-            <div id="employeeSearchResults" class="employee-search-results"></div>
-        </div>
-        
-        <p style="margin-top: 15px; margin-bottom: 5px; font-weight: bold; color: #555; text-align: left; padding-left: 10px;">Release Date (today only):</p>
-        <input type="date" id="releaseDate" disabled>
-        
-        <button id="finalReleaseBtn" style="width: 100%; margin-top: 15px;" onclick="submitRelease()" disabled>Confirm & Deduct Stock</button>
-        <br><br><button style="background:#6c757d; width: 100%;" onclick="closeModals()">Cancel Transaction</button>
     </div>
 </div>
 
@@ -462,12 +448,16 @@ const MAX_LOG_ENTRIES = 5000;
 const LOG_RETENTION_MS = 365 * 24 * 60 * 60 * 1000; // 1 year
 const POLL_INTERVAL_MS = 5000;
 
-let activeItemId = "";
-let pendingReleaseQty = 0;
 let activeEmployeeId = "";
 let editingOldEmpId = "";
 let editingItemId = "";
 let employeeSortMode = "numAsc"; 
+
+// Inventory-action panel state (Restock / Release flow)
+let currentScanMode = null;       // 'restock' | 'release' | null
+let restockDetectedItemId = "";
+let releaseDetectedItemId = "";
+let releaseQueue = [];            // [{ itemId, itemName, unit, qty }]
 
 window.setEmployeeSort = function(mode) {
     employeeSortMode = mode;
@@ -856,30 +846,58 @@ function showSystemNotification(title, message, isSuccess = true) {
     openModal("notificationModal");
 }
 
+// Moves the single shared scanner widget (camera + manual entry) into
+// whichever panel is currently active, so there's only ever one camera
+// stream/DOM node to manage no matter which flow is open.
+function moveScannerWidgetTo(mountId) {
+    const widget = document.getElementById("scannerWidget");
+    const mount = document.getElementById(mountId);
+    if (widget && mount) mount.appendChild(widget);
+}
+
 function handleItemScan(id) {
     if (!inventory.items[id]) {
         showSystemNotification("Scan Rejected", `Item profile code "${id}" not found inside inventory listings.`, false);
         return;
     }
-    activeItemId = id;
-    document.getElementById("modalItemTitle").innerText = `Detected: ${inventory.items[id].name}`;
-    openModal("optionsModal");
+
+    if (currentScanMode === "restock") {
+        restockDetectedItemId = id;
+        document.getElementById("restockDetectedItem").innerText = `${inventory.items[id].name} (${id})`;
+        updateRestockProceedState();
+    } else if (currentScanMode === "release") {
+        releaseDetectedItemId = id;
+        document.getElementById("releaseDetectedItem").innerText = `${inventory.items[id].name} (${id})`;
+        updateAddReleaseItemState();
+    } else {
+        showSystemNotification("Choose an Action First", "Tap Restock or Release before scanning an item.", false);
+    }
 }
 
-window.handleReleaseVerification = function() {
-    if (inventory.items[activeItemId].quantity <= 0) {
-        showSystemNotification("Release Rejected", `"${inventory.items[activeItemId].name}" is out of stock.`, false);
-    } else {
-        openModal("releaseModal");
-    }
+// --- RESTOCK FLOW ---
+window.showRestockPanel = function() {
+    document.getElementById("actionSelectPanel").style.display = "none";
+    document.getElementById("releasePanel").style.display = "none";
+    document.getElementById("restockPanel").style.display = "flex";
+    currentScanMode = "restock";
+    restockDetectedItemId = "";
+    document.getElementById("restockDetectedItem").innerText = "None yet";
+    document.getElementById("restockQty").value = "";
+    updateRestockProceedState();
+    moveScannerWidgetTo("restockScannerMount");
 };
 
-window.openAddModal = function() { openModal("addModal"); };
+function updateRestockProceedState() {
+    const qty = parseInt(document.getElementById("restockQty").value);
+    const btn = document.getElementById("restockProceedBtn");
+    if (btn) btn.disabled = !(restockDetectedItemId && qty > 0);
+}
+window.updateRestockProceedState = updateRestockProceedState;
 
-window.submitAdd = async function() {
-    let qty = parseInt(document.getElementById("addQty").value);
-    if (!(qty > 0)) return;
-    const itemId = activeItemId;
+window.submitRestock = async function() {
+    const itemId = restockDetectedItemId;
+    const qty = parseInt(document.getElementById("restockQty").value);
+    if (!itemId || !(qty > 0)) return;
     const itemName = inventory.items[itemId] ? inventory.items[itemId].name : itemId;
     const unit = inventory.items[itemId] ? inventory.items[itemId].unit : "pc";
 
@@ -893,26 +911,105 @@ window.submitAdd = async function() {
         await refreshInventory();
         await refreshLogs();
         renderTables();
-        closeModals();
-        showSystemNotification("Restock Success", `Added +${qty} units to inventory.`);
+        const doneName = itemName;
+        cancelActionPanel();
+        showSystemNotification("Restock Success", `Added +${qty} ${formatUnit(unit, qty)} to "${doneName}".`);
     } catch (e) {
-        showSystemNotification("Add Failed", e.message, false);
+        showSystemNotification("Restock Failed", e.message, false);
     }
 };
 
-window.openEmployeeSelectionModal = async function() {
-    let qty = parseInt(document.getElementById("releaseQty").value);
-    if (!(qty > 0)) return;
-
-    pendingReleaseQty = qty;
+// --- RELEASE FLOW ---
+window.showReleasePanel = function() {
+    document.getElementById("actionSelectPanel").style.display = "none";
+    document.getElementById("restockPanel").style.display = "none";
+    document.getElementById("releasePanel").style.display = "flex";
+    currentScanMode = "release";
+    releaseDetectedItemId = "";
+    releaseQueue = [];
     activeEmployeeId = "";
+    document.getElementById("releaseDetectedItem").innerText = "None yet";
+    document.getElementById("releaseItemQty").value = "";
     document.getElementById("employeeSearchInput").value = "";
     document.getElementById("employeeSearchResults").innerHTML = "";
-    
-    const releaseDateInput = document.getElementById("releaseDate");
-    releaseDateInput.valueAsDate = new Date();
-    document.getElementById("finalReleaseBtn").disabled = true;
-    openModal("employeeModal");
+    updateAddReleaseItemState();
+    renderReleaseQueueList();
+    updateReleaseProceedState();
+    moveScannerWidgetTo("releaseScannerMount");
+};
+
+window.cancelActionPanel = function() {
+    stopScanner();
+    document.getElementById("restockPanel").style.display = "none";
+    document.getElementById("releasePanel").style.display = "none";
+    document.getElementById("actionSelectPanel").style.display = "flex";
+    currentScanMode = null;
+    restockDetectedItemId = "";
+    releaseDetectedItemId = "";
+    releaseQueue = [];
+    activeEmployeeId = "";
+};
+
+function updateAddReleaseItemState() {
+    const qty = parseInt(document.getElementById("releaseItemQty").value);
+    const btn = document.getElementById("addReleaseItemBtn");
+    if (btn) btn.disabled = !(releaseDetectedItemId && qty > 0);
+}
+window.updateAddReleaseItemState = updateAddReleaseItemState;
+
+function updateReleaseProceedState() {
+    const btn = document.getElementById("releaseProceedBtn");
+    if (btn) btn.disabled = !(releaseQueue.length > 0 && activeEmployeeId);
+}
+
+window.addItemToReleaseQueue = function() {
+    const itemId = releaseDetectedItemId;
+    const qty = parseInt(document.getElementById("releaseItemQty").value);
+    if (!itemId || !(qty > 0)) return;
+    if (!inventory.items[itemId]) {
+        showSystemNotification("Item Missing", "This item no longer exists in the registry.", false);
+        return;
+    }
+
+    const existing = releaseQueue.find(row => row.itemId === itemId);
+    if (existing) {
+        existing.qty += qty;
+    } else {
+        releaseQueue.push({
+            itemId,
+            itemName: inventory.items[itemId].name,
+            unit: inventory.items[itemId].unit,
+            qty
+        });
+    }
+
+    releaseDetectedItemId = "";
+    document.getElementById("releaseDetectedItem").innerText = "None yet";
+    document.getElementById("releaseItemQty").value = "";
+    updateAddReleaseItemState();
+    renderReleaseQueueList();
+    updateReleaseProceedState();
+};
+
+function renderReleaseQueueList() {
+    const container = document.getElementById("releaseQueueList");
+    if (!container) return;
+    if (releaseQueue.length === 0) {
+        container.innerHTML = `<p style="font-size:12px; color:#999; text-align:center;">No items added yet.</p>`;
+        return;
+    }
+    container.innerHTML = releaseQueue.map((row, idx) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border:1px solid #ddd; border-radius:6px; margin-bottom:6px; background:#fff;">
+            <span>${row.itemName} <span class="unit-label">${row.qty} ${formatUnit(row.unit, row.qty)}</span></span>
+            <button type="button" class="danger action-btn" onclick="removeReleaseQueueItem(${idx})">✕</button>
+        </div>
+    `).join("");
+}
+
+window.removeReleaseQueueItem = function(idx) {
+    releaseQueue.splice(idx, 1);
+    renderReleaseQueueList();
+    updateReleaseProceedState();
 };
 
 window.hideEmployeeSearchResults = function() {
@@ -925,7 +1022,7 @@ window.handleEmployeeSearchInput = function() {
     const resultsDiv = document.getElementById("employeeSearchResults");
 
     activeEmployeeId = "";
-    document.getElementById("finalReleaseBtn").disabled = true;
+    updateReleaseProceedState();
 
     if (!query) {
         resultsDiv.innerHTML = "";
@@ -955,32 +1052,67 @@ window.selectEmployeeFromSearch = function(empId) {
     activeEmployeeId = empId;
     document.getElementById("employeeSearchInput").value = `${emp.name} (${empId})`;
     hideEmployeeSearchResults();
-    document.getElementById("finalReleaseBtn").disabled = false;
+    updateReleaseProceedState();
 };
 
-window.submitRelease = async function() {
-    const qty = pendingReleaseQty;
-    const itemId = activeItemId;
-    const empId = activeEmployeeId;
+// Validates the whole queue against the freshest stock right before
+// deducting anything. If any item is out of stock (or the queued
+// quantity now exceeds what's left), nothing is deducted — the user
+// acknowledges the specific item that's blocking it, fixes the queue
+// (remove/adjust that row), then tries Proceed again.
+window.proceedRelease = async function() {
+    if (releaseQueue.length === 0) return;
+    if (!activeEmployeeId) {
+        showSystemNotification("Select an Employee", "Please choose the receiving employee before proceeding.", false);
+        return;
+    }
+
+    await refreshInventory();
+
+    for (const row of releaseQueue) {
+        const current = inventory.items[row.itemId];
+        if (!current) {
+            showSystemNotification("Item Missing", `"${row.itemName}" no longer exists in the registry. Remove it from the list to continue.`, false);
+            return;
+        }
+        if (current.quantity <= 0) {
+            showSystemNotification("Out of Stock", `"${row.itemName}" has 0 quantity in stock and cannot be released. Remove it from the list to continue.`, false);
+            return;
+        }
+        if (current.quantity < row.qty) {
+            showSystemNotification("Insufficient Stock", `Only ${current.quantity} ${formatUnit(row.unit, current.quantity)} of "${row.itemName}" remain — requested ${row.qty}. Adjust the quantity to continue.`, false);
+            return;
+        }
+    }
+
+    const empLabel = employees.items[activeEmployeeId] ? employees.items[activeEmployeeId].name : activeEmployeeId;
     const authDate = formatDateMMDDYYYY(new Date());
-    const empLabel = employees.items[empId] ? employees.items[empId].name : empId;
-    const itemName = inventory.items[itemId] ? inventory.items[itemId].name : itemId;
-    const unit = inventory.items[itemId] ? inventory.items[itemId].unit : "pc";
+    const queueSnapshot = releaseQueue.slice();
 
     try {
         await mutateShared(STORAGE_KEYS.inventory, (latest) => {
-            const item = latest.items[itemId];
-            if (item.quantity < qty) throw new Error("Insufficient stock capacity.");
-            item.quantity -= qty;
+            for (const row of queueSnapshot) {
+                const item = latest.items[row.itemId];
+                if (!item) throw new Error(`"${row.itemName}" no longer exists.`);
+                if (item.quantity < row.qty) throw new Error(`Not enough stock left for "${row.itemName}".`);
+                item.quantity -= row.qty;
+            }
             return latest;
         });
-        await appendLog(itemId, "RELEASE", qty, empLabel, authDate, itemName, unit);
+
+        for (const row of queueSnapshot) {
+            await appendLog(row.itemId, "RELEASE", row.qty, empLabel, authDate, row.itemName, row.unit);
+        }
+
         await refreshInventory();
         await refreshLogs();
         renderTables();
-        closeModals();
-        showSystemNotification("Release Dispatched", `Issued ${qty} units to ${empLabel}.`);
+        const itemCount = queueSnapshot.length;
+        cancelActionPanel();
+        showSystemNotification("Release Dispatched", `Issued ${itemCount} item${itemCount > 1 ? "s" : ""} to ${empLabel}.`);
     } catch (e) {
+        await refreshInventory();
+        renderTables();
         showSystemNotification("Release Failed", e.message, false);
     }
 };
