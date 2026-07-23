@@ -855,7 +855,7 @@ function moveScannerWidgetTo(mountId) {
     if (widget && mount) mount.appendChild(widget);
 }
 
-function handleItemScan(id) {
+window.handleItemScan = function(id) {
     if (!inventory.items[id]) {
         showSystemNotification("Scan Rejected", `Item profile code "${id}" not found inside inventory listings.`, false);
         return;
@@ -869,10 +869,16 @@ function handleItemScan(id) {
         releaseDetectedItemId = id;
         document.getElementById("releaseDetectedItem").innerText = `${inventory.items[id].name} (${id})`;
         updateAddReleaseItemState();
+        
+        // Hide the QR scanner and manual input area upon successful detection
+        const scannerWidget = document.getElementById("scannerWidget");
+        if (scannerWidget) {
+            scannerWidget.style.display = "none";
+        }
     } else {
         showSystemNotification("Choose an Action First", "Tap Restock or Release before scanning an item.", false);
     }
-}
+};
 
 // --- RESTOCK FLOW ---
 window.showRestockPanel = function() {
@@ -936,6 +942,10 @@ window.showReleasePanel = function() {
     renderReleaseQueueList();
     updateReleaseProceedState();
     moveScannerWidgetTo("releaseScannerMount");
+    
+    // Ensure scanner is visible when opening the panel
+    const scannerWidget = document.getElementById("scannerWidget");
+    if (scannerWidget) scannerWidget.style.display = "flex";
 };
 
 window.cancelActionPanel = function() {
@@ -948,8 +958,11 @@ window.cancelActionPanel = function() {
     releaseDetectedItemId = "";
     releaseQueue = [];
     activeEmployeeId = "";
+    
+    // Ensure scanner is visible when returning to the action selection menu
+    const scannerWidget = document.getElementById("scannerWidget");
+    if (scannerWidget) scannerWidget.style.display = "flex";
 };
-
 function updateAddReleaseItemState() {
     const qty = parseInt(document.getElementById("releaseItemQty").value);
     const btn = document.getElementById("addReleaseItemBtn");
@@ -965,6 +978,7 @@ function updateReleaseProceedState() {
 window.addItemToReleaseQueue = function() {
     const itemId = releaseDetectedItemId;
     const qty = parseInt(document.getElementById("releaseItemQty").value);
+    
     if (!itemId || !(qty > 0)) return;
     if (!inventory.items[itemId]) {
         showSystemNotification("Item Missing", "This item no longer exists in the registry.", false);
@@ -989,6 +1003,12 @@ window.addItemToReleaseQueue = function() {
     updateAddReleaseItemState();
     renderReleaseQueueList();
     updateReleaseProceedState();
+    
+    // Restore the QR scanner and manual input area for the next item
+    const scannerWidget = document.getElementById("scannerWidget");
+    if (scannerWidget) {
+        scannerWidget.style.display = "flex";
+    }
 };
 
 function renderReleaseQueueList() {
